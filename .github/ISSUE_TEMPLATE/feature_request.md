@@ -1,44 +1,48 @@
 ---
 name: Feature Request
 about: Suggest a new workflow or improvement
-title: '[Feature] '
+  title: 'feat: '
 labels: enhancement
 assignees: ''
 ---
 
-## Summary
+## Feature Type
 
-A clear and concise description of what you want to add or improve.
+- [ ] New security tool workflow
+- [ ] Improvement to existing workflow
+- [ ] New documentation
+- [ ] New example
+- [ ] Other
 
-## Is this a new tool/workflow?
+## Tool / Feature Name
 
-- [ ] Yes — I want to add a new security scanning tool
-- [ ] No — I want to improve an existing workflow
+**Tool name:** (if requesting a new workflow)  
+**Tool website:** (link to documentation or GitHub Action)  
+**Tool category:** SAST / SCA / DAST / Container / IaC / Other
 
-## Tool Information (for new workflows)
+## Problem Statement
 
-| Field | Value |
-|-------|-------|
-| **Tool Name** | |
-| **Tool URL** | |
-| **Category** | SAST / DAST / SCA / Container / IaC / Enterprise / Supply Chain / Quality |
-| **Free/Paid** | |
-| **Primary Languages** | |
-| **GitHub Actions Marketplace link** | |
+What problem does this solve? Who would benefit?
 
-## Motivation
+## Proposed Solution
 
-Why should this tool be added to GrowKudos? What problem does it solve that existing tools don't?
+Describe the workflow or feature you'd like to see added.
+
+## Example Configuration
+
+If you have a working example or snippet, share it here:
+
+```yaml
+# Example workflow or configuration
+```
 
 ## Alternatives Considered
 
-Are there existing workflows in GrowKudos that provide similar functionality? Why isn't that sufficient?
-
-## Would You Contribute This?
-
-- [ ] Yes, I can submit a pull request with the workflow
-- [ ] No, I am requesting that a maintainer add this
+Are there similar tools already in GrowKudos? How is this different?
 
 ## Additional Context
 
-Any other information that would help us understand and prioritise this request.
+- Is this tool free / open source, or commercial?
+- Does it have an official GitHub Action?
+- Link to any relevant documentation:
+- Are you willing to contribute this feature? Yes / No

@@ -1,47 +1,47 @@
 ---
 name: Bug Report
-about: Report a problem with a workflow template
-title: '[Bug] '
+about: Report a broken or misbehaving workflow
+  title: 'bug: '
 labels: bug
 assignees: ''
 ---
 
-## Bug Description
+## Workflow Affected
 
-A clear and concise description of the bug.
+**Workflow filename:** (e.g., `bandit.yml`, `codeql.yml`)
 
-## Affected Workflow
+## Describe the Bug
 
-Which workflow file is affected? (e.g. `bandit.yml`, `codeql.yml`)
+A clear and concise description of what the bug is.
 
 ## Steps to Reproduce
 
-1. Added `...` workflow to `.github/workflows/`
-2. Pushed commit
-3. Workflow ran
-4. Error: ...
+1. Copy `[workflow file]` to `.github/workflows/`
+2. Push to a repository with `[language/framework]`
+3. See error in the Actions tab
 
 ## Expected Behavior
 
-What you expected to happen.
+A clear description of what you expected to happen.
 
 ## Actual Behavior
 
-What actually happened. Include the full error message or log output.
+What actually happened. Include the full error message if available.
+
+## Error Output
+
+```
+Paste the error message or relevant log lines here
+```
 
 ## Environment
 
-- Repository visibility: Public / Private
-- Runner: ubuntu-latest / self-hosted
-- GitHub Actions runner version (if known):
-- Date first observed:
-
-## Workflow Log
-
-```
-Paste the relevant portion of the GitHub Actions run log here.
-```
+- **Repository type:** Public / Private
+- **Runner OS:** ubuntu-latest / other
+- **Action version used:** (check the `uses:` line in the workflow)
 
 ## Additional Context
 
-Any other context about the problem (e.g. specific tool versions, custom configuration).
+- Link to a failed Actions run (if public repository): 
+- Any customizations made to the workflow:
+- Related issues or PRs:

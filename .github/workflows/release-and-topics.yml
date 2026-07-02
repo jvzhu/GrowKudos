@@ -16,10 +16,11 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     permissions:
-      contents: write          # create tags, releases
-      pull-requests: write     # close stale PR
-      issues: write            # allow commenting on PRs/issues
-      administration: write    # update repository topics
+      contents: write   # create tags, releases
+      pull-requests: write  # close stale PR
+      issues: write  # allow --comment when closing PR
+      administration: write  # update repository topics
+
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -27,8 +28,8 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      # ── 1. Add repository topics ────────────────────────────────────────────
-      - name: Add repository topics
+      # ── 1. Set repository topics (replaces all existing topics) ───────────────
+      - name: Set repository topics
         if: inputs.dry_run == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,7 +55,7 @@ jobs:
       - name: Dry-run — print topics
         if: inputs.dry_run == 'true'
         run: |
-          echo "Would add topics: github-actions security security-scanning sast sca dast infrastructure-as-code github-security ci-cd workflow-templates open-source"
+          echo "Would set topics (replaces all existing topics): github-actions security security-scanning sast sca dast infrastructure-as-code github-security ci-cd workflow-templates open-source"
 
       # ── 2. Create release v1.0.0 (this triggers npm-publish.yml) ───────────
       - name: Create GitHub Release v1.0.0
@@ -62,8 +63,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view v1.0.0 --repo ${{ github.repository }} >/dev/null 2>&1 && { echo "Release v1.0.0 already exists — skipping"; exit 0; }
-          gh release create v1.0.0 \
+          if gh release view v1.0.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "ℹ️ Release v1.0.0 already exists — skipping"
+            exit 0
+          fi
+          gh release create v1.0.0 --repo "${{ github.repository }}" \
             --title "GrowKudos v1.0.0 - Professional Security Scanning Workflows" \
             --notes "## 🎉 GrowKudos v1.0.0 — First Stable Release
 

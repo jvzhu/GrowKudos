@@ -1,167 +1,236 @@
 # Frequently Asked Questions
 
-## General
-
-### What is GrowKudos?
-
-GrowKudos is a curated collection of GitHub Actions workflow templates for application security scanning. It includes 30+ workflows covering SAST, DAST, SCA, container security, IaC scanning, and more. It is also published as an npm package (`@jvzhu/growkudos`) for programmatic access to workflow metadata.
-
-### Who is GrowKudos for?
-
-GrowKudos is for:
-- **Developers** who want to add security scanning to their CI/CD pipeline quickly
-- **DevSecOps engineers** building standardised security pipelines across multiple repositories
-- **Security teams** who need a reference for available GitHub Actions security tools
-- **Open-source maintainers** who want to add security scanning without extensive research
-
-### Is GrowKudos free to use?
-
-Yes, GrowKudos itself is MIT licensed. However, many of the security tools it provides workflows for are commercial products that require paid subscriptions. See the [Free vs. Paid Tools](README.md#free-vs-paid-tools) section for details.
+Answers to common questions about GrowKudos and security scanning with GitHub Actions.
 
 ---
 
-## Using Workflows
+## General Questions
+
+### What is GrowKudos?
+
+GrowKudos is a curated collection of 42+ GitHub Actions workflow templates for application security scanning. Copy workflows to your `.github/workflows/` directory to instantly add security scanning to any repository.
+
+### Is GrowKudos free to use?
+
+Yes — GrowKudos itself is MIT-licensed and free. However, many of the security tools it references have their own pricing. See the [Cost Summary in COMPARISON_MATRIX.md](COMPARISON_MATRIX.md#cost-summary) for details on which tools are free vs. commercial.
+
+### Do I need to install any software?
+
+No. GitHub Actions run in the cloud. You just need to add a `.yml` file to your repository and GitHub handles everything else.
+
+### Will these workflows work on private repositories?
+
+Most workflows work on both public and private repositories. CodeQL requires **GitHub Advanced Security** for private repositories. Other free tools (Bandit, OSV Scanner, Dependency Review, Semgrep, etc.) work on private repos without any additional subscription.
+
+---
+
+## Getting Started Questions
+
+### Which tool should I start with?
+
+For most projects:
+1. **`codeql.yml`** — Deep code analysis, no setup needed
+2. **`dependency-review.yml`** — Immediate dependency security on PRs
+3. **`osv-scanner.yml`** — Broader dependency scanning
+
+For Python projects, also add `bandit.yml`. See [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ### How do I add a workflow to my repository?
 
-1. Browse the [`.github/workflows/`](.github/workflows/) directory
-2. Find the workflow for your chosen tool
-3. Copy the YAML file into your repository at `.github/workflows/<name>.yml`
-4. Commit and push
+1. Create the directory: `mkdir -p .github/workflows/`
+2. Copy the desired `.yml` file into that directory
+3. Commit and push
 
-That's it — GitHub Actions picks it up automatically.
+The workflow runs automatically on the next push or PR. See [GETTING_STARTED.md](GETTING_STARTED.md) for detailed instructions.
 
-### Can I use multiple workflows together?
+### How many workflows can I add?
 
-Yes! Most workflows are independent and can run in parallel. See the [comprehensive-setup.yml](examples/comprehensive-setup.yml) example for a multi-tool pipeline.
+There's no limit from GitHub's side. However, running many concurrent workflow jobs may slow down your CI or consume GitHub Actions minutes quickly for private repos. Start with 2-3 tools and expand from there.
 
-### Do I need to configure anything?
+---
 
-Most free tools work out of the box. Paid tools require API keys stored as GitHub Secrets. See [GETTING_STARTED.md](GETTING_STARTED.md) for the list of required secrets.
+## Configuration Questions
 
-### Where do I see the security findings?
+### Do I need to modify the workflow files?
 
-All GrowKudos workflows upload results to GitHub's Security tab in SARIF format. Go to **your-repo → Security → Code scanning alerts**.
+For most free tools (CodeQL, Bandit, OSV Scanner), you can use the files as-is. You may want to customize:
+- The `language:` field in CodeQL to match your project's languages
+- The trigger events (`on:` block) to match your branch names
+- The schedule (cron expression) if you want different scan timing
 
-### Can I run workflows on pull requests only?
+### Where do I store API keys and tokens?
 
-Yes, you can edit the `on:` trigger in any workflow. To run only on pull requests:
+In GitHub Secrets: **Settings → Secrets and variables → Actions → New repository secret**
+
+Never put tokens directly in workflow files. Always use `${{ secrets.SECRET_NAME }}`.
+
+### How do I change which branches trigger a scan?
+
+Edit the `on:` section:
 
 ```yaml
 on:
+  push:
+    branches: [ "main", "develop", "staging" ]
   pull_request:
     branches: [ "main" ]
 ```
 
-### Can I run workflows on a schedule?
+### Can I run scans only on changed files?
 
-Yes. All included workflows support a `schedule:` trigger. To scan weekly on Monday at 6am UTC:
+Yes, use path filters:
 
 ```yaml
 on:
-  schedule:
-    - cron: '0 6 * * 1'
+  push:
+    paths:
+      - '**.py'           # Only Python files
+      - 'requirements*.txt'
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
 ```
 
 ---
 
-## npm Package
+## Results Questions
 
-### Why is there an npm package for GitHub Actions workflows?
+### Where do I see scan results?
 
-The npm package provides programmatic access to workflow metadata and file contents. This is useful for:
-- Automation scripts that install security workflows across multiple repositories
-- Build tools that dynamically configure security scanning
-- Querying which tools support a given language or are free
+- **SARIF-compatible tools**: Results appear in **Security tab → Code scanning alerts**
+- **Other tools**: Results appear in the **Actions tab** job logs
+- **Dependency scanning tools**: May also appear in **Security tab → Dependabot**
 
-### How do I install the npm package?
+### Why is the Security tab not showing results?
 
+Common reasons:
+1. The workflow hasn't run yet (push a commit to trigger it)
+2. The workflow failed — check the Actions tab for errors
+3. The `permissions: security-events: write` is missing from the workflow
+4. You're on a private repository without GitHub Advanced Security (for some tools)
+
+### My scan found many issues. What do I do?
+
+Don't panic! Start with **Critical** and **High** severity findings. Common approaches:
+
+1. **Fix immediately**: Genuine security vulnerabilities in production code
+2. **Accept risk**: Business decision to acknowledge known issue
+3. **Suppress / ignore**: False positives (see tool-specific ignore files)
+4. **Track as technical debt**: Create issues for Low/Medium findings
+
+### How do I suppress false positives?
+
+Each tool has its own ignore mechanism:
+
+**Bandit:**
+```python
+subprocess.call(args)  # nosec B603
+```
+
+**Semgrep:**
+```javascript
+dangerous_function(); // nosemgrep
+```
+
+**CodeQL:** Use `.github/codeql/codeql-config.yml` to add paths to ignore.
+
+**OSV Scanner:** Create `.osv-scanner-ignore.json` in your repo.
+
+---
+
+## Tool-Specific Questions
+
+### CodeQL is slow. Can I speed it up?
+
+Yes, several options:
+1. Only scan changed languages (not all languages in the matrix)
+2. Use path filters to skip documentation and test files
+3. Cache the CodeQL database between runs
+4. Reduce query set (`security-and-quality` is thorough; `security-extended` is slightly faster)
+
+See [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md) for more tips.
+
+### Bandit has too many false positives. How do I reduce them?
+
+Configure Bandit with a `.bandit` config file:
+
+```ini
+[bandit]
+skips: B101,B311  # Skip assert statements and pseudo-random generators in tests
+exclude: tests,docs,venv
+```
+
+Or use severity/confidence filtering in the workflow:
 ```bash
-# Configure the registry
-echo "@jvzhu:registry=https://npm.pkg.github.com" >> .npmrc
-
-# Authenticate (requires GitHub token with read:packages scope)
-npm login --scope=@jvzhu --registry=https://npm.pkg.github.com
-
-# Install
-npm install @jvzhu/growkudos
+bandit -r . --severity-level medium --confidence-level medium
 ```
 
-### Do I need a GitHub token to install the package?
+### Can I use multiple tools of the same category?
 
-Yes. GitHub Packages requires authentication even for public packages. You need a Personal Access Token (PAT) with `read:packages` scope. See [npm-USAGE.md](npm-USAGE.md) for details.
+Yes! Using multiple SAST tools is common because they catch different vulnerability patterns. For example:
+- CodeQL for deep semantic analysis
+- Semgrep for fast pattern matching
+- Bandit for Python-specific checks
 
-### Can I use the package in GitHub Actions?
+The results are aggregated in the Security tab.
 
-Yes. In a GitHub Actions workflow, you can use `${{ secrets.GITHUB_TOKEN }}` to authenticate:
+### Which DAST tool should I use?
 
-```yaml
-- run: |
-    echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
-    npm install @jvzhu/growkudos
-```
+If you're new to DAST: **StackHawk** — best developer experience, good documentation, free tier.
+
+If you need no running application: **EthicalCheck** — can test from an OpenAPI spec.
+
+If you want AI-powered scanning: **NeuraLegion (Bright)** — low false-positive rate.
 
 ---
 
-## Security Findings
+## GitHub Actions Questions
 
-### I'm getting false positives. What should I do?
+### What is SARIF?
 
-Most tools support configuration to suppress false positives:
+SARIF (Static Analysis Results Interchange Format) is a JSON-based format for static analysis results. GitHub natively understands SARIF and displays results in the Security tab. Most modern security tools support SARIF output.
 
-- **Bandit**: Use `# nosec B101` inline comments or a `.bandit` config file
-- **CodeQL**: Use `// lgtm[...]` annotations or a `codeql-config.yml` file
-- **Semgrep**: Use `# nosemgrep:` inline annotations or `.semgrepignore`
-- **DevSkim**: Add suppression comments per the DevSkim documentation
+### My workflow fails with "Resource not accessible by integration"
 
-### How do I set a minimum severity threshold?
-
-For **Dependency Review**:
+This typically means missing permissions. Add to your workflow:
 ```yaml
-- uses: actions/dependency-review-action@v4
-  with:
-    fail-on-severity: high  # critical, high, medium, low
+permissions:
+  contents: read
+  security-events: write
 ```
 
-For **Bandit**, use the `level` parameter in the workflow configuration.
+### Can I run these workflows on self-hosted runners?
 
-### My workflow failed — how do I debug it?
+Yes, change `runs-on: ubuntu-latest` to `runs-on: self-hosted` (or your custom runner label). Ensure the runner has internet access to download the required Docker images and tools.
 
-1. Go to **Actions** tab in your repository
-2. Click the failed workflow run
-3. Expand the failed step to see the full log output
-4. Check for missing secrets (look for `Error: secret not found`)
-5. Check the tool documentation for the specific error message
+### How do I see how many GitHub Actions minutes I'm using?
+
+Go to **Settings → Billing → Usage this month** to see Actions minutes consumed. Public repos have unlimited free minutes; private repos have a monthly allowance.
+
+### What's the difference between `push` and `pull_request` triggers?
+
+- **`push`**: Runs after code is committed to the branch
+- **`pull_request`**: Runs on PR creation and updates, can block merges
+
+For security scanning, use both: `pull_request` to catch issues before merge, `push` to scan the main branch.
 
 ---
 
-## Contributing
+## Contributing Questions
 
-### How do I add a new workflow?
+### How do I add a new tool workflow?
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide. The short version:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions. The short version:
+
 1. Fork the repository
-2. Add the workflow to `.github/workflows/`
-3. Update `index.js` with the tool metadata
-4. Update `README.md`, `TOOLS.md`, `TOOLS_GUIDE.md`, and `COMPARISON_MATRIX.md`
-5. Submit a pull request
+2. Create `.github/workflows/tool-name.yml` following the template
+3. Update `TOOLS.md`, `README.md`, `TOOLS_GUIDE.md`, and `COMPARISON_MATRIX.md`
+4. Open a pull request
 
-### I found a bug in a workflow — where do I report it?
+### I found a broken workflow. How do I report it?
 
-Open an issue using the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md).
+Open an issue using the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.md). Include the workflow filename, error message, and your repository context.
 
-### Can I request a new tool?
+### Can I contribute documentation improvements?
 
-Yes! Open an issue using the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md).
-
----
-
-## Licensing
-
-### What license is GrowKudos under?
-
-GrowKudos is MIT licensed. See [LICENSE](LICENSE).
-
-### What about the tools the workflows use?
-
-Each tool has its own license. The workflow files themselves are MIT licensed (as part of GrowKudos), but the security scanning tools they invoke are subject to their own terms. See [TOOLS_GUIDE.md](TOOLS_GUIDE.md) for individual tool licenses.
+Absolutely! Documentation improvements are very welcome. Open a PR with your changes. No need to open an issue first for small fixes.
