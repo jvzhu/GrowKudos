@@ -62,6 +62,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh release view v1.0.0 --repo ${{ github.repository }} >/dev/null 2>&1 && { echo "Release v1.0.0 already exists — skipping"; exit 0; }
           gh release create v1.0.0 \
             --title "GrowKudos v1.0.0 - Professional Security Scanning Workflows" \
             --notes "## 🎉 GrowKudos v1.0.0 — First Stable Release
