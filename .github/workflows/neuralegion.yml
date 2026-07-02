@@ -149,17 +149,24 @@
 
 name: "NeuraLegion"
 
+# NOTE (GrowKudos repo): DAST requires a running application and a
+# NEURALEGION_TOKEN secret, neither of which exist in this template
+# repository — so this workflow only runs manually here.
+# When you copy this file to your own repository, restore the triggers:
+#
+# on:
+#   push:
+#     branches: [ "main" ]
+#   pull_request:
+#     branches: [ "main" ]
+#   schedule:
+#     - cron: '37 4 * * 0'
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  schedule:
-    - cron: '37 4 * * 0'
+  workflow_dispatch:
 
 jobs:
   neuralegion_scan:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest  # was ubuntu-18.04 (retired Dec 2022 — jobs queue forever)
     name: A job to run a Nexploit scan
     steps:
       - uses: actions/checkout@v4
