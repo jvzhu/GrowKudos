@@ -344,7 +344,7 @@ See [npm-USAGE.md](npm-USAGE.md) and [examples/npm-usage.js](examples/npm-usage.
 
 #### `crda.yml` — CRDA (Red Hat Code Ready Dependency Analytics)
 **Best for:** Java, Node.js, Python, and Go dependency scanning with CVE data.
-- Powered by Synk + Red Hat data
+- Powered by Snyk + Red Hat data
 - Requires `CRDA_KEY`
 
 #### `frogbot-scan-and-fix.yml` / `frogbot-scan-pr.yml` — Frogbot (JFrog)

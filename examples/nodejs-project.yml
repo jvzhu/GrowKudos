@@ -95,12 +95,13 @@ jobs:
 
   # ─────────────────────────────────────────────────────────
   # Snyk: npm/yarn dependency scanning
-  # Requires SNYK_TOKEN secret — remove job if unavailable
+  # Requires SNYK_TOKEN secret — remove this job if unavailable.
+  # (Note: the `secrets` context cannot be used in job-level `if`
+  # conditions, so this job cannot be skipped automatically.)
   # ─────────────────────────────────────────────────────────
   snyk:
     name: Snyk Dependency Scan
     runs-on: ubuntu-latest
-    if: ${{ secrets.SNYK_TOKEN != '' }}
 
     steps:
       - name: Checkout repository
