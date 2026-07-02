@@ -1,7 +1,7 @@
 ---
 name: Bug Report
 about: Report a broken or misbehaving workflow
-title: '[BUG] '
+  title: 'bug: '
 labels: bug
 assignees: ''
 ---

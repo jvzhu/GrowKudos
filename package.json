@@ -1,0 +1,55 @@
+{
+  "name": "@jvzhu/growkudos",
+  "version": "1.0.0",
+  "description": "Collection of 30+ GitHub Actions security scanning workflows for comprehensive DevSecOps pipelines",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jvzhu/GrowKudos.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "keywords": [
+    "github-actions",
+    "security",
+    "devsecops",
+    "sast",
+    "dast",
+    "dependency-scanning",
+    "container-security",
+    "code-quality",
+    "workflows",
+    "ci-cd",
+    "bandit",
+    "semgrep",
+    "codeql",
+    "snyk",
+    "veracode",
+    "fortify",
+    "checkmarx",
+    "sonarqube",
+    "security-scanning"
+  ],
+  "author": "jvzhu",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jvzhu/GrowKudos/issues"
+  },
+  "homepage": "https://github.com/jvzhu/GrowKudos#readme",
+  "scripts": {
+    "test": "node --test",
+    "list-workflows": "node -e \"const g = require('.'); console.log(g.listWorkflows());\"",
+    "list-categories": "node -e \"const g = require('.'); console.log(g.getCategories());\""
+  },
+  "files": [
+    "index.js",
+    ".github/workflows/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

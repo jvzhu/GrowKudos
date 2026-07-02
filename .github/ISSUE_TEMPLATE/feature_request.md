@@ -1,7 +1,7 @@
 ---
 name: Feature Request
 about: Suggest a new workflow or improvement
-title: '[FEAT] '
+  title: 'feat: '
 labels: enhancement
 assignees: ''
 ---

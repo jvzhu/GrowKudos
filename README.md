@@ -232,6 +232,33 @@ See the [`examples/`](examples/) directory for complete CI/CD setups:
 | [`examples/python-project.yml`](examples/python-project.yml) | Python-optimized stack |
 | [`examples/nodejs-project.yml`](examples/nodejs-project.yml) | Node.js-optimized stack |
 
+### Option 4: Install as an npm Package
+
+GrowKudos is also available as an npm package to programmatically query and copy workflows:
+
+```bash
+# Authenticate (one-time)
+npm login --scope=@jvzhu --auth-type=legacy --registry=https://npm.pkg.github.com
+
+# Install
+npm install @jvzhu/growkudos
+```
+
+```js
+const growkudos = require('@jvzhu/growkudos');
+const fs = require('fs');
+
+// List all available workflows
+console.log(growkudos.listWorkflows());
+
+// Copy a specific workflow into your project
+const content = growkudos.getWorkflowContent('semgrep');
+fs.mkdirSync('.github/workflows', { recursive: true });
+fs.writeFileSync('.github/workflows/semgrep.yml', content);
+```
+
+See [npm-USAGE.md](npm-USAGE.md) and [examples/npm-usage.js](examples/npm-usage.js) for the full API reference.
+
 ---
 
 ## 📁 Workflows Reference
