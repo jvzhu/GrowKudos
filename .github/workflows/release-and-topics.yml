@@ -18,6 +18,8 @@ jobs:
     permissions:
       contents: write   # create tags, releases
       pull-requests: write  # close stale PR
+      issues: write  # allow --comment when closing PR
+      administration: write  # update repository topics
 
     steps:
       - name: Checkout main
