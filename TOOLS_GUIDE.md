@@ -1,444 +1,523 @@
 # Tools Guide
 
-Detailed documentation for every security scanning tool included in GrowKudos.
+A detailed guide to every security tool category included in GrowKudos, with configuration tips, common use cases, and integration advice.
 
 ---
 
 ## Table of Contents
 
-- [SAST Tools](#sast-tools)
-- [DAST Tools](#dast-tools)
-- [SCA Tools](#sca-tools)
+- [SAST — Static Application Security Testing](#sast--static-application-security-testing)
+- [SCA — Software Composition Analysis](#sca--software-composition-analysis)
+- [DAST — Dynamic Application Security Testing](#dast--dynamic-application-security-testing)
 - [Container Security](#container-security)
-- [Infrastructure as Code](#infrastructure-as-code)
-- [Enterprise Platforms](#enterprise-platforms)
-- [Supply Chain Security](#supply-chain-security)
+- [Infrastructure as Code Security](#infrastructure-as-code-security)
 - [Code Quality](#code-quality)
+- [Supply Chain Security](#supply-chain-security)
+- [Fuzz Testing](#fuzz-testing)
+- [Multi-Category Tools](#multi-category-tools)
 
 ---
 
-## SAST Tools
+## SAST — Static Application Security Testing
+
+SAST tools analyze your source code **without running it**, looking for patterns that indicate security vulnerabilities like SQL injection, XSS, hard-coded secrets, and insecure cryptography.
+
+**When to use SAST:**
+- Every commit and PR (fast tools like Bandit, Semgrep, DevSkim)
+- On a schedule for deep analysis (CodeQL, Checkmarx, Veracode)
+- As a merge gate to prevent new vulnerabilities
+
+---
 
 ### Bandit
 
 **File:** `bandit.yml`  
-**License:** Apache-2.0  
-**Cost:** Free  
-**Languages:** Python  
+**Language:** Python only  
+**Cost:** Free / Open Source
 
-Bandit is a security linter for Python developed by the PyCQA community. It scans Python ASTs for common security issues such as hardcoded passwords, SQL injection, use of insecure functions, and more.
+Bandit is the most widely used Python security linter. It performs Abstract Syntax Tree (AST) analysis to find common Python security issues.
 
-**When to use:** Any Python project. Lightweight and fast — ideal as a first-pass security check.
+**What it finds:**
+- Hardcoded passwords and secrets (`B105`, `B106`, `B107`)
+- Use of dangerous functions (`eval`, `exec`, `os.system`)
+- Insecure use of cryptography (weak algorithms, small key sizes)
+- SQL injection risks
+- XML vulnerabilities (XXE)
+- Shell injection via `subprocess`
 
-**Configuration:** Create a `.bandit` file in your repo root:
-
-```ini
+**Configuration:**
+```yaml
+# .bandit configuration file
 [bandit]
-skips = B101,B601
-exclude_dirs = tests,venv
+exclude: tests,docs
+skips: B101,B601  # Skip assert statements and shell injection in tests
 ```
 
-**Key checks:** Hardcoded passwords, SQL injection, shell injection, use of `pickle`, unsafe YAML loading, weak cryptography.
+**Common customization in the workflow:**
+```yaml
+- name: Run Bandit
+  run: bandit -r . -f json -o bandit-results.json
+  continue-on-error: true  # Don't fail CI, just report
+```
 
 ---
 
 ### CodeQL
 
 **File:** `codeql.yml`  
-**License:** GitHub proprietary (free for public repos)  
-**Cost:** Free (public repos), paid (private repos)  
-**Languages:** JavaScript, TypeScript, Python, Java, C/C++, C#, Go, Ruby, Kotlin, Swift  
+**Language:** C, C++, C#, Java, JavaScript, TypeScript, Python, Ruby, Go, Swift  
+**Cost:** Free for public repos; included with GitHub Advanced Security for private repos
 
-CodeQL is GitHub's semantic code analysis engine. It builds a database of your code and runs queries against it to find security vulnerabilities. The query library is maintained by GitHub Security Lab and the community.
+CodeQL is GitHub's semantic code analysis engine. It models your code as a database and runs queries to find complex vulnerabilities that simple pattern-matching misses.
 
-**When to use:** Most projects — it provides deep semantic analysis that catches complex vulnerabilities pattern-based tools miss.
+**What it finds:**
+- SQL injection (data-flow tracking from source to sink)
+- Cross-site scripting (XSS)
+- Path traversal vulnerabilities
+- Command injection
+- Unsafe deserialization
+- Insecure randomness
+- Cryptographic weaknesses
 
-**Key checks:** SQL injection, XSS, path traversal, code injection, deserialization, CSRF, and many more language-specific checks.
+**Key feature — data flow analysis:** CodeQL traces how user-controlled data flows through your application, even across function calls and files, to find injection vulnerabilities.
+
+**Configuration options:**
+```yaml
+- name: Initialize CodeQL
+  uses: github/codeql-action/init@v3
+  with:
+    languages: python, javascript    # Specify languages
+    queries: security-and-quality    # Use extended query pack
+    config-file: ./.github/codeql/codeql-config.yml  # Custom config
+```
+
+**Custom CodeQL config (`.github/codeql/codeql-config.yml`):**
+```yaml
+name: "Custom CodeQL Config"
+queries:
+  - uses: security-and-quality
+paths-ignore:
+  - "tests/**"
+  - "docs/**"
+```
 
 ---
 
 ### Semgrep
 
 **File:** `semgrep.yml`  
-**License:** LGPL-2.1 (OSS engine), Pro rules paid  
-**Cost:** Free (community rules)  
-**Languages:** JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, C/C++, Kotlin, Scala, Rust, and more  
+**Language:** 30+ languages including Python, JavaScript, TypeScript, Java, Go, Ruby, PHP, C, C++  
+**Cost:** Free (CLI); optional cloud dashboard with `SEMGREP_APP_TOKEN`
 
-Semgrep is a fast, open-source static analysis tool that uses pattern matching. It has thousands of community-contributed rules and a straightforward rule syntax for writing custom checks.
+Semgrep uses lightweight pattern matching with an expressive rule syntax. It has 3,000+ community rules and allows you to write custom rules without learning a query language.
 
-**When to use:** Any project. Particularly good for enforcing custom security policies and team-specific coding standards.
+**What it finds (with community rules):**
+- OWASP Top 10 vulnerabilities
+- Framework-specific issues (Django, Flask, Express, Spring, etc.)
+- Secret detection
+- Insecure coding patterns
+- Custom business logic violations
 
-**Key checks:** Depends on selected rulesets. The `p/default` ruleset covers OWASP Top 10, secrets detection, and security anti-patterns.
+**Run with specific rulesets:**
+```yaml
+- name: Run Semgrep
+  run: semgrep scan --config "p/owasp-top-ten" --config "p/python" .
+```
+
+**Write custom rules:**
+```yaml
+# .semgrep/custom-rules.yml
+rules:
+  - id: no-print-statements
+    pattern: print(...)
+    message: "Remove debug print statements before production"
+    languages: [python]
+    severity: WARNING
+```
+
+---
+
+### Pyre & Pysa
+
+**Files:** `pyre.yml`, `pysa.yml`  
+**Language:** Python  
+**Cost:** Free / Open Source (Meta/Facebook)
+
+**Pyre** is a fast Python type checker. **Pysa** (Python Static Analyzer) is built on top of Pyre and performs taint analysis to find security vulnerabilities.
+
+**Pysa finds:**
+- SQL injection
+- Remote code execution
+- XSS vulnerabilities
+- Server-side request forgery (SSRF)
+- Path traversal
+
+**Pysa requires a `pyproject.toml` or `.pyre_configuration`:**
+```json
+{
+  "source_directories": ["."],
+  "taint_models_path": ".pysa_models"
+}
+```
 
 ---
 
 ### DevSkim
 
 **File:** `devskim.yml`  
-**License:** MIT  
-**Cost:** Free  
-**Languages:** Multiple (language-agnostic pattern matching)  
+**Language:** Multi-language (C, C++, C#, Java, Python, JavaScript, TypeScript, PHP, Ruby, and more)  
+**Cost:** Free / Open Source (Microsoft)
 
-DevSkim is Microsoft's security linter that looks for dangerous API usage, hardcoded secrets, and other security problems using a rule engine with IDE plugins.
+DevSkim provides IDE-style security analysis optimized for CI pipelines. It flags specific vulnerable API calls and coding patterns.
 
-**When to use:** Multi-language projects or when you want IDE-integrated security checks.
-
----
-
-### Pyre
-
-**File:** `pyre.yml`  
-**License:** MIT  
-**Cost:** Free  
-**Languages:** Python  
-
-Pyre is a performant type checker for Python from Meta. It performs gradual typing analysis and can catch type errors that lead to security vulnerabilities.
-
-**When to use:** Python projects with type annotations, or projects wanting to adopt type safety incrementally.
-
----
-
-### Pysa
-
-**File:** `pysa.yml`  
-**License:** MIT  
-**Cost:** Free  
-**Languages:** Python  
-
-Pysa (Python Static Analyzer) is a security-focused taint analysis tool from Meta that is built on top of Pyre. It tracks user-controlled data flows through your code to detect injection vulnerabilities.
-
-**When to use:** Python web applications (Django, Flask) where you want taint-based analysis for injection vulnerabilities.
-
-**Key checks:** SQL injection, XSS, SSRF, remote code execution through taint propagation.
-
----
-
-### Pylint
-
-**File:** `pylint.yml`  
-**License:** GPL-2.0  
-**Cost:** Free  
-**Languages:** Python  
-
-Pylint is a comprehensive Python code analyser that catches errors, enforces coding standards, and identifies security-related bad practices.
-
-**When to use:** Python projects wanting both code quality and security linting in one tool.
+**What it finds:**
+- Use of deprecated/broken cryptographic algorithms (MD5, SHA1, DES)
+- Banned function calls (`strcpy`, `gets` in C/C++)
+- Hardcoded credentials
+- Overly permissive CORS headers
+- SQL query construction patterns
 
 ---
 
 ### OSSAR
 
 **File:** `ossar.yml`  
-**License:** MIT  
-**Cost:** Free  
-**Languages:** Multiple  
+**Language:** JavaScript, TypeScript, Python, C#, Go, Java  
+**Cost:** Free (Microsoft Open Source Security Analysis Runs)
 
-Open Source Static Analysis Runner (OSSAR) by Microsoft runs multiple open-source analysers in a single workflow step, including ESLint security rules, Credscan, and the Template Analyzer.
-
-**When to use:** Projects wanting broad SAST coverage with minimal configuration.
+OSSAR is a GitHub Actions wrapper that runs multiple Microsoft security tools in parallel and aggregates results into SARIF format.
 
 ---
 
 ### Checkmarx / Checkmarx One
 
 **Files:** `checkmarx.yml`, `checkmarx-one.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple (30+ languages)  
+**Language:** 35+ languages  
+**Cost:** Commercial license required
 
-Checkmarx is an enterprise SAST platform with deep analysis capabilities and policy management. Checkmarx One is their cloud-native SaaS platform.
+**Required secrets:**
+- `CHECKMARX_URL` — Checkmarx server URL
+- `CHECKMARX_USERNAME` — Username
+- `CHECKMARX_PASSWORD` — Password
+- `CHECKMARX_CLIENT_SECRET` — (for Checkmarx One)
 
-**Prerequisites:** Checkmarx subscription and API credentials stored as GitHub secrets.
+Checkmarx is an enterprise SAST platform with deep vulnerability analysis and compliance reporting. Checkmarx One is the cloud-native version.
 
 ---
 
 ### Fortify
 
 **File:** `fortify.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple (27+ languages)  
+**Language:** 35+ languages  
+**Cost:** Commercial
 
-Micro Focus Fortify is an enterprise static code analyser with broad language support and comprehensive vulnerability categorisation based on CWE/SANS Top 25.
+**Required secrets:**
+- For Fortify on Demand: `FOD_URL`, `FOD_API_KEY`, `FOD_API_SECRET`
+- For SSC: `SSC_URL`, `SSC_TOKEN`
 
-**Prerequisites:** Fortify subscription; `FTF_CI_TOKEN` GitHub secret.
-
----
-
-### JFrog SAST
-
-**File:** `jfrog-sast.yml`  
-**License:** Proprietary  
-**Cost:** Paid (part of JFrog Advanced Security)  
-**Languages:** Multiple  
-
-JFrog Advanced Security includes SAST capabilities integrated with the JFrog Platform for end-to-end DevSecOps.
+Fortify (by OpenText/Micro Focus) is an enterprise SAST solution with strong compliance mapping (PCI-DSS, HIPAA, GDPR, CWE, SANS Top 25).
 
 ---
 
-## DAST Tools
+### Veracode
 
-### NeuraLegion (Bright)
+**File:** `veracode.yml`  
+**Language:** Multi-language  
+**Cost:** Commercial
 
-**File:** `neuralegion.yml`  
-**License:** Proprietary  
-**Cost:** Paid (free tier available)  
-**Languages:** N/A (tests running app)  
+**Required secrets:**
+- `VERACODE_API_ID`
+- `VERACODE_API_KEY`
 
-NeuraLegion (now Bright Security) is an AI-powered DAST scanner that tests APIs and web applications by crawling and fuzzing endpoints.
-
-**Prerequisites:** Running application endpoint; `BRIGHT_TOKEN` GitHub secret.
-
----
-
-### Mayhem for API
-
-**File:** `mayhem-for-api.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** N/A  
-
-Mayhem for API uses fuzz testing to discover vulnerabilities in REST APIs, GraphQL, and SOAP services.
-
-**Prerequisites:** OpenAPI/Swagger spec; running API endpoint; `MAYHEM_TOKEN` GitHub secret.
+Veracode combines SAST, SCA, and DAST. Its workflow submission model allows both policy scan and pipeline scan modes.
 
 ---
 
-### StackHawk
+## SCA — Software Composition Analysis
 
-**File:** `stackhawk.yml`  
-**License:** Proprietary  
-**Cost:** Paid (free trial available)  
-**Languages:** N/A  
+SCA tools inventory your third-party dependencies and check them against vulnerability databases to find components with known CVEs.
 
-StackHawk is a developer-centric DAST tool that integrates natively with CI/CD. It is based on OWASP ZAP.
-
-**Prerequisites:** `.stackhawk.yml` configuration file; `HAWK_API_KEY` GitHub secret.
+**Why SCA matters:** The majority of modern application code comes from open-source dependencies. Tools like npm, pip, Maven, and Gradle make it easy to add hundreds of packages, but each package introduces potential vulnerabilities.
 
 ---
 
-### APIsec Scan
-
-**File:** `apisec-scan.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** N/A  
-
-APIsec is an API security testing platform that validates API implementations against a comprehensive set of security checks.
-
----
-
-### EthicalCheck
-
-**File:** `ethicalcheck.yml`  
-**License:** Proprietary  
-**Cost:** Paid (free tier available)  
-**Languages:** N/A  
-
-EthicalCheck provides automated, zero-configuration API security testing that identifies OWASP API Top 10 vulnerabilities.
-
----
-
-## SCA Tools
-
-### Dependency Review
+### GitHub Dependency Review
 
 **File:** `dependency-review.yml`  
-**License:** MIT  
-**Cost:** Free  
-**Languages:** All (package manager agnostic)  
+**Language:** All (based on lock files)  
+**Cost:** Free
 
-GitHub's built-in dependency review action blocks pull requests that introduce dependencies with known vulnerabilities, based on the GitHub Advisory Database.
+The simplest way to start with SCA. Dependency Review runs on every PR and blocks merges that introduce vulnerable dependencies.
 
-**When to use:** Every project — this should be the minimum baseline for dependency security.
+**What it checks:**
+- `package-lock.json`, `yarn.lock` (npm/yarn)
+- `requirements.txt`, `Pipfile.lock` (Python)
+- `pom.xml`, `build.gradle` (Java)
+- `go.sum` (Go)
+- `Gemfile.lock` (Ruby)
+- `composer.lock` (PHP)
+- `Cargo.lock` (Rust)
+- And more
+
+**Configuration options:**
+```yaml
+- name: Dependency Review
+  uses: actions/dependency-review-action@v4
+  with:
+    fail-on-severity: moderate    # Options: low, moderate, high, critical
+    allow-licenses: MIT, Apache-2.0, BSD-2-Clause  # Allowlist licenses
+    deny-licenses: GPL-3.0        # Denylist specific licenses
+```
 
 ---
 
 ### OSV Scanner
 
 **File:** `osv-scanner.yml`  
-**License:** Apache-2.0  
-**Cost:** Free  
-**Languages:** All major ecosystems  
+**Language:** Go, npm, PyPI, Maven, Cargo, NuGet, RubyGems, and more  
+**Cost:** Free / Open Source (Google)
 
-Google's OSV Scanner checks dependencies against the OSV (Open Source Vulnerabilities) database, which aggregates data from multiple vulnerability databases.
+OSV Scanner uses the [Open Source Vulnerability database](https://osv.dev), which aggregates CVEs from GitHub Advisory Database, NVD, and project-specific advisories.
 
-**When to use:** Any open-source project. Complements Dependency Review with broader database coverage.
+**Advantages over other tools:**
+- Checks transitive dependencies
+- Uses multiple vulnerability sources
+- Free and open source
+- Fast execution
 
 ---
 
-### Snyk Security
+### Snyk
 
 **File:** `snyk-security.yml`  
-**License:** Proprietary  
-**Cost:** Paid (free tier for open-source projects)  
-**Languages:** All major ecosystems  
+**Language:** npm, Python, Java, .NET, Ruby, Go, PHP, Docker  
+**Cost:** Free tier available; `SNYK_TOKEN` required
 
-Snyk is an industry-leading developer security platform that scans dependencies, containers, and IaC for vulnerabilities and can automatically open fix pull requests.
-
-**Prerequisites:** `SNYK_TOKEN` GitHub secret from [app.snyk.io](https://app.snyk.io).
+Snyk is one of the most developer-friendly SCA tools. Features include:
+- Automatic fix PRs for vulnerable dependencies
+- License compliance checking
+- Container image scanning
+- IaC scanning (Terraform, CloudFormation, Kubernetes)
 
 ---
 
 ### Debricked
 
 **File:** `debricked.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple  
+**Language:** 11+ languages  
+**Cost:** Free tier; `DEBRICKED_TOKEN` required
 
-Debricked provides SCA with automated fix suggestions and license compliance tracking.
+Debricked focuses on **automated remediation** — it not only finds vulnerable dependencies but also suggests and can auto-apply fixes. Strong license compliance features.
 
 ---
 
-### CRDA
+### CRDA (Red Hat Code Ready Dependency Analytics)
 
 **File:** `crda.yml`  
-**License:** Apache-2.0  
-**Cost:** Free  
-**Languages:** Java (Maven/Gradle), Node.js, Python, Go  
+**Language:** Java (Maven), Node.js, Python, Go  
+**Cost:** Free; `CRDA_KEY` required
 
-Red Hat's Code Ready Dependency Analytics provides vulnerability scanning with detailed remediation guidance.
-
----
-
-### Endor Labs
-
-**File:** `endorlabs.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple  
-
-Endor Labs focuses on reachability analysis — it only flags vulnerabilities in code paths actually reachable in your application, dramatically reducing false positives.
+CRDA combines vulnerability data from Red Hat's security team and Snyk. It provides a risk score for your dependency tree.
 
 ---
 
 ### Frogbot
 
-**Files:** `frogbot-scan-pr.yml`, `frogbot-scan-and-fix.yml`  
-**License:** Apache-2.0 (agent), JFrog Platform (server) proprietary  
-**Cost:** Paid (JFrog Platform subscription)  
-**Languages:** Multiple  
+**Files:** `frogbot-scan-and-fix.yml`, `frogbot-scan-pr.yml`  
+**Language:** Multi-language  
+**Cost:** JFrog platform subscription; `JF_URL`, `JF_ACCESS_TOKEN` required
 
-Frogbot is JFrog's automated PR scanning bot. The "scan-pr" variant reports vulnerabilities in PRs; the "scan-and-fix" variant automatically creates fix PRs.
+Two workflow variants:
+- **`frogbot-scan-pr.yml`**: Scans PRs and comments with findings
+- **`frogbot-scan-and-fix.yml`**: Scans and automatically opens fix PRs
+
+---
+
+## DAST — Dynamic Application Security Testing
+
+DAST tools test your **running application** by sending malformed inputs and observing responses. Unlike SAST, DAST finds vulnerabilities in the deployed behavior of your app.
+
+**When to use DAST:**
+- After building/deploying a test instance
+- Against staging environments
+- For API security testing
+
+---
+
+### StackHawk
+
+**File:** `stackhawk.yml`  
+**Target:** REST and GraphQL APIs  
+**Cost:** Free tier; `HAWK_API_KEY` required
+
+StackHawk is designed specifically for developer workflows. It uses OWASP ZAP under the hood but provides a polished experience optimized for CI/CD.
+
+**Requires:**
+1. A running application (you'll need to start it in the workflow)
+2. A `stackhawk.yml` configuration file in your repo
+3. `HAWK_API_KEY` secret
+
+**Example `stackhawk.yml` config:**
+```yaml
+app:
+  applicationId: ${APP_ID}
+  env: Development
+  host: http://localhost:8080
+```
+
+---
+
+### APIsec
+
+**File:** `apisec-scan.yml`  
+**Target:** REST APIs  
+**Cost:** Free tier; `APISEC_*` secrets required
+
+APIsec generates comprehensive test cases from your OpenAPI (Swagger) specification and tests for business logic flaws alongside technical vulnerabilities.
+
+---
+
+### NeuraLegion (Bright Security)
+
+**File:** `neuralegion.yml`  
+**Target:** REST APIs, GraphQL, Web apps  
+**Cost:** Free tier; `BRIGHT_TOKEN` required
+
+NeuraLegion uses AI-powered scanning with a very low false-positive rate. Supports both "scan" and "re-test" modes for efficient CI/CD integration.
+
+---
+
+### EthicalCheck
+
+**File:** `ethicalcheck.yml`  
+**Target:** REST APIs  
+**Cost:** Free tier; `ETHICALCHECK_*` secrets required
+
+EthicalCheck can test APIs using a specification file (OpenAPI/Swagger) without needing a running application, making it easy to integrate.
 
 ---
 
 ## Container Security
 
-### Sysdig Secure
+Container security tools scan Docker images for OS package vulnerabilities, misconfigurations, and embedded secrets.
+
+---
+
+### Sysdig
 
 **File:** `sysdig-scan.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** N/A (Docker image scanning)  
+**Target:** Docker/OCI container images  
+**Cost:** Commercial; `SYSDIG_SECURE_TOKEN` required
 
-Sysdig Secure scans container images for OS package vulnerabilities and misconfigurations, and provides runtime security monitoring.
-
-**Prerequisites:** `SYSDIG_SECURE_TOKEN` and `SYSDIG_SECURE_URL` GitHub secrets.
-
----
-
-### Black Duck
-
-**File:** `black-duck-security-scan-ci.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple + container scanning  
-
-Synopsys Black Duck is a comprehensive open-source security and license compliance solution that supports containers, binaries, and source code.
+Sysdig Secure provides runtime security as well as image scanning. The CI workflow scans images before they reach production, checking for:
+- OS package CVEs
+- Application dependency CVEs
+- Misconfigurations
+- Embedded secrets
 
 ---
 
-## Infrastructure as Code
+## Infrastructure as Code Security
 
-### Policy Validator for CloudFormation
+IaC security tools validate your infrastructure definitions before deployment to catch overly permissive configurations, security misconfigurations, and compliance violations.
+
+---
+
+### AWS CloudFormation Policy Validator
 
 **File:** `policy-validator-cfn.yml`  
-**License:** Apache-2.0  
-**Cost:** Free  
-**Languages:** CloudFormation (YAML/JSON)  
+**Target:** AWS CloudFormation templates  
+**Cost:** Free (AWS tool); AWS credentials required
 
-AWS IAM Access Analyzer's policy validator checks CloudFormation templates for IAM policy issues including overly permissive policies and potential security risks.
+Validates IAM policies in CloudFormation templates against AWS's best practices and identifies overly permissive policies (`*` actions, `*` resources).
 
-**When to use:** Any AWS project using CloudFormation for infrastructure.
+**Required:** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
 
 ---
 
-### Policy Validator for Terraform
+### AWS Terraform Policy Validator
 
 **File:** `policy-validator-tf.yml`  
-**License:** Apache-2.0  
-**Cost:** Free  
-**Languages:** Terraform (HCL)  
+**Target:** Terraform configurations  
+**Cost:** Free (AWS tool); AWS credentials required
 
-Same as above but for Terraform configurations.
-
-**When to use:** Any AWS project using Terraform for infrastructure.
-
----
-
-## Enterprise Platforms
-
-### Veracode
-
-**File:** `veracode.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple  
-
-Veracode is a leading application security testing platform used widely in regulated industries. It supports SAST, DAST, SCA, and manual penetration testing.
-
-**Prerequisites:** `VERACODE_API_ID` and `VERACODE_API_KEY` GitHub secrets.
-
----
-
-### Synopsys Action / Synopsys IO
-
-**Files:** `synopsys-action.yml`, `synopsys-io.yml`  
-**License:** Proprietary  
-**Cost:** Paid  
-**Languages:** Multiple  
-
-Synopsys Polaris and Coverity provide enterprise SAST, while Synopsys IO (Intelligent Orchestration) automatically selects which security tests to run based on code changes.
-
----
-
-### Microsoft Defender for DevOps
-
-**File:** `defender-for-devops.yml`  
-**License:** Proprietary  
-**Cost:** Part of Microsoft Defender for Cloud  
-**Languages:** Multiple  
-
-Integrates Microsoft Defender for Cloud security findings into GitHub's Security tab, covering infrastructure misconfigurations and code vulnerabilities.
-
----
-
-## Supply Chain Security
-
-### SLSA Generic Publisher
-
-**File:** `generator-generic-ossf-slsa3-publish.yml`  
-**License:** Apache-2.0  
-**Cost:** Free  
-**Languages:** N/A (any build artifact)  
-
-Generates SLSA (Supply-chain Levels for Software Artifacts) Level 3 provenance for your build outputs, signed with Sigstore's keyless signing. This provides a verifiable record of how your software was built.
-
-**When to use:** Any project publishing artifacts (binaries, packages, Docker images) to package registries.
+Same validation as CloudFormation validator but for Terraform configurations. Runs `terraform plan` and validates the resulting IAM policies.
 
 ---
 
 ## Code Quality
 
+---
+
 ### Codacy
 
 **File:** `codacy.yml`  
-**License:** Proprietary  
-**Cost:** Paid (free for open-source)  
-**Languages:** Multiple  
+**Language:** 40+ languages  
+**Cost:** Free for public repos; `CODACY_PROJECT_TOKEN` required
 
-Codacy provides automated code quality reviews covering security, code complexity, duplication, and style, with GitHub PR comments and a code quality dashboard.
+Codacy aggregates results from 30+ static analysis tools and provides a quality dashboard tracking trends over time. Checks code style, security, code coverage, and code complexity.
 
-**Prerequisites:** `CODACY_PROJECT_TOKEN` GitHub secret.
+---
+
+### Pylint
+
+**File:** `pylint.yml`  
+**Language:** Python  
+**Cost:** Free / Open Source
+
+Pylint is Python's most comprehensive static analysis tool, checking:
+- Code style (PEP 8 compliance)
+- Error detection (undefined variables, wrong argument counts)
+- Refactoring suggestions
+- Basic security checks (using `pylint-security` plugin)
+
+---
+
+## Supply Chain Security
+
+### OSSF SLSA Generator
+
+**File:** `generator-generic-ossf-slsa3-publish.yml`  
+**Cost:** Free
+
+SLSA (Supply-chain Levels for Software Artifacts) is a framework for securing the software build process. Level 3 provides:
+- Signed build provenance
+- Hermetic, reproducible builds
+- Protection against build tampering
+
+**How it works:** The workflow generates a cryptographically signed attestation that proves your artifact was built from a specific source commit, by a specific workflow, without modification.
+
+---
+
+## Fuzz Testing
+
+Fuzz testing sends random/malformed inputs to your application to discover crashes, memory issues, and unhandled edge cases that could be security vulnerabilities.
+
+### Mayhem for API
+
+**File:** `mayhem-for-api.yml`  
+**Target:** REST APIs  
+**Cost:** Commercial; `MAYHEM_TOKEN` required
+
+Mayhem uses AI-guided fuzzing to discover novel API vulnerabilities beyond what rule-based tools find. It generates a test corpus that evolves based on code coverage feedback.
+
+---
+
+## Multi-Category Tools
+
+Some tools span multiple categories:
+
+### Snyk
+- SCA (dependency scanning)
+- Container scanning
+- IaC scanning (optional)
+
+### Microsoft Defender for DevOps (`defender-for-devops.yml`)
+- SAST (via Bandit, ESLint)
+- SCA (dependency scanning)
+- IaC scanning
+- Secret detection
+Requires Azure DevOps/Defender subscription.
+
+### Synopsys (`synopsys-action.yml`, `synopsys-io.yml`)
+Synopsys offers both Black Duck (SCA) and Coverity (SAST) through their unified Polaris platform. Both workflow files are included for different integration styles.

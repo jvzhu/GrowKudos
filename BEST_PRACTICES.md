@@ -1,183 +1,363 @@
 # Security Scanning Best Practices
 
-This guide provides recommendations for getting the most value from security scanning in your CI/CD pipeline.
+A guide to getting the most value from security scanning in your CI/CD pipeline while minimizing noise and developer friction.
 
 ---
 
-## 1. Start with the Free Tier
+## Table of Contents
 
-Before investing in paid tools, implement the free baseline:
-
-| Priority | Tool | Reason |
-|----------|------|--------|
-| 1 | **CodeQL** | Deep semantic SAST — catches complex vulnerabilities |
-| 2 | **Dependency Review** | Blocks vulnerable dependencies in PRs — zero config |
-| 3 | **Semgrep** (OSS rules) | Fast pattern-based SAST with community rules |
-| 4 | **OSV Scanner** | Scheduled dependency scanning with broad DB coverage |
-
-This free stack catches the majority of common vulnerabilities.
+- [Foundational Principles](#foundational-principles)
+- [Choosing What to Scan](#choosing-what-to-scan)
+- [Triggering Scans](#triggering-scans)
+- [Handling Results](#handling-results)
+- [Managing False Positives](#managing-false-positives)
+- [Secrets Management](#secrets-management)
+- [Branch Protection Integration](#branch-protection-integration)
+- [Triage and Remediation](#triage-and-remediation)
+- [Building a Security Culture](#building-a-security-culture)
 
 ---
 
-## 2. Layer Your Scanning
+## Foundational Principles
 
-No single tool catches everything. Use multiple tools at different stages:
+### 1. Shift Left
+
+The earlier you find a vulnerability, the cheaper it is to fix:
 
 ```
-Developer → Push → PR → Merge → Deploy
-              │     │     │        │
-              │     │     │        └── Container scan (Sysdig)
-              │     │     └────────── Full SAST (CodeQL)
-              │     └──────────────── Dependency Review
-              └────────────────────── IDE / Pre-commit (DevSkim)
+Developer's IDE     PR check     Merge to main     Production
+     |                 |               |                |
+  Cheapest ────────────────────────────────────── Most Expensive
+```
+
+Configure tools to run on every PR so developers get feedback while the code is fresh in their minds.
+
+### 2. Start Small, Expand Gradually
+
+Don't add 10 tools at once. Developer frustration from excessive CI noise causes teams to ignore or bypass security tools.
+
+**Recommended progression:**
+1. **Week 1**: Add `dependency-review.yml` (PRs only, no false positives)
+2. **Week 2**: Add `codeql.yml` or `bandit.yml` (tune before enforcing)
+3. **Month 1**: Add SCA tool (Snyk or OSV Scanner)
+4. **Quarter 1**: Evaluate results and add more coverage
+
+### 3. Fix What You Find
+
+Running scanners without acting on results provides false confidence. Establish a process:
+- Assign ownership of security findings
+- Include security debt in sprint planning
+- Track metrics (new vs. resolved findings)
+
+### 4. Use Multiple Tools
+
+No single tool catches everything. A layered approach provides better coverage:
+
+| Layer | Example Tools | What They Catch |
+|-------|--------------|----------------|
+| SAST | CodeQL + Semgrep | Code-level vulnerabilities |
+| SCA | OSV Scanner + Dependency Review | Known vulnerable dependencies |
+| DAST | StackHawk | Runtime vulnerabilities |
+| Secrets | Built-in GitHub secret scanning | Committed credentials |
+
+---
+
+## Choosing What to Scan
+
+### Scan Everything in Source Control
+
+```yaml
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+```
+
+### Exclude Non-Code Directories
+
+Use path filters to skip scanning documentation, generated files, and test fixtures that generate noise:
+
+```yaml
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'lib/**'
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.github/**'
+      - 'tests/fixtures/**'
+```
+
+### Scan Dependencies Separately from Code
+
+Run SAST and SCA tools in separate jobs:
+- SAST tools (CodeQL, Bandit) can run in parallel
+- SCA tools (OSV Scanner, Dependency Review) are usually faster
+
+```yaml
+jobs:
+  sast:
+    # CodeQL job
+  sca:
+    # OSV Scanner job
+  # Run independently, don't make one depend on the other
 ```
 
 ---
 
-## 3. Fail Fast, Fix Fast
+## Triggering Scans
 
-**Do:**
-- Block PRs on high/critical severity findings
-- Surface findings in PR comments (not just the Security tab)
-- Set up GitHub Security Advisories to track fixes
+### Use Both Push and PR Triggers
 
-**Don't:**
-- Fail builds on low-severity findings (this causes alert fatigue)
-- Ignore findings indefinitely
-- Disable security workflows to speed up CI
+```yaml
+on:
+  push:
+    branches: [ "main" ]          # Scan committed code
+  pull_request:
+    branches: [ "main" ]          # Scan incoming changes
+  schedule:
+    - cron: '0 6 * * 1'           # Weekly for new CVEs in existing code
+```
 
----
+### Why Schedule Matters
 
-## 4. Manage False Positives
+Your code doesn't change, but vulnerability databases do. A dependency that was safe when you committed it may have a CVE published months later. Weekly scans catch these retroactive vulnerabilities.
 
-False positives are inevitable. Handle them systematically:
+### Skip Redundant Scans
 
-1. **Investigate first**: Confirm it is actually a false positive
-2. **Suppress with context**: Use inline suppression comments that explain *why*:
-   ```python
-   result = subprocess.run(cmd, shell=True)  # nosec B602 - cmd is validated against allowlist
-   ```
-3. **Track suppressions**: Code review all `nosec`, `# nosemgrep`, `// lgtm` annotations
-4. **Review periodically**: Suppressed findings should be re-evaluated quarterly
+Configure paths-ignore to skip scans when only documentation changes:
 
----
-
-## 5. Use SARIF for Centralised Visibility
-
-All GrowKudos workflows upload SARIF results to GitHub's Security tab. This gives you:
-
-- Centralised finding management
-- Deduplication across tools
-- Historical trending
-- GitHub Dependabot integration
+```yaml
+on:
+  push:
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+```
 
 ---
 
-## 6. Protect Your Secrets
+## Handling Results
 
-Security scanning workflows often require API tokens:
+### Use the GitHub Security Tab
 
-- **Never hardcode tokens** in workflow files
-- **Always use GitHub Secrets**: `${{ secrets.SNYK_TOKEN }}`
-- **Rotate tokens regularly** (every 90 days)
-- **Use minimum permissions**: Only grant secrets.read scope where needed
-- **Audit secret access**: Review which workflows use which secrets
+All tools that output SARIF integrate with GitHub's Security tab:
+- Centralized view of all findings
+- Severity filtering
+- Assignment to developers
+- Dismissal with justification
+
+### Prioritize by Severity
+
+| Severity | Response Time | Action |
+|----------|--------------|--------|
+| Critical | Immediate | Block PRs, fix now |
+| High | Same sprint | Fix before release |
+| Medium | Next sprint | Schedule fix |
+| Low | Backlog | Fix when convenient |
+| Informational | Review | Accept or dismiss |
+
+### Set Realistic Thresholds
+
+For new projects, start with permissive thresholds and tighten over time:
+
+```yaml
+# Start: only fail on critical
+- uses: actions/dependency-review-action@v4
+  with:
+    fail-on-severity: critical
+
+# After addressing critical issues, lower to high
+    fail-on-severity: high
+
+# Goal: fail on moderate
+    fail-on-severity: moderate
+```
 
 ---
 
-## 7. Permissions Principle of Least Privilege
+## Managing False Positives
 
-All workflows should declare the minimum permissions needed:
+False positives are unavoidable. Here's how to manage them without degrading scan quality.
+
+### Use Tool-Specific Suppressions
+
+Each tool has a way to suppress specific findings:
+
+**Bandit** — inline comment:
+```python
+result = subprocess.run(cmd, shell=True)  # nosec B602 - cmd is not user-controlled
+```
+
+**Semgrep** — inline comment:
+```javascript
+eval(safeTemplate)  // nosemgrep: dangerous-eval - template is validated before use
+```
+
+**CodeQL** — `.github/codeql/codeql-config.yml`:
+```yaml
+paths-ignore:
+  - "tests/**"       # Don't scan test files
+  - "vendor/**"      # Don't scan third-party code
+```
+
+### Document Suppressions
+
+Always add a comment explaining WHY a finding is suppressed:
+```python
+# BAD: no explanation
+hashlib.md5(data)  # nosec
+
+# GOOD: explains the business reason
+hashlib.md5(data)  # nosec B324 - MD5 used for non-security checksum (cache key only)
+```
+
+### Track Accepted Risks
+
+Create a `SECURITY_EXCEPTIONS.md` file documenting accepted security risks:
+
+```markdown
+## Accepted Security Exceptions
+
+| Rule | Location | Reason | Reviewer | Expires |
+|------|----------|--------|---------|---------|
+| B324 (MD5) | utils/cache.py | Non-security checksum | @reviewer | 2027-01 |
+```
+
+---
+
+## Secrets Management
+
+### Never Commit Secrets
+
+Use GitHub Secrets for all sensitive values:
+
+```yaml
+env:
+  API_KEY: ${{ secrets.API_KEY }}  # Good
+  # API_KEY: "sk_live_abc123"      # Never do this
+```
+
+### Use Minimum Required Permissions
+
+Follow the principle of least privilege for workflow permissions:
 
 ```yaml
 permissions:
-  contents: read
-  security-events: write
-  actions: read  # only if needed
+  contents: read           # Minimum for checkout
+  security-events: write   # Only if uploading SARIF
+  # Don't add permissions you don't need
 ```
 
-Avoid using `permissions: write-all` — it grants more access than any security tool needs.
+### Rotate Secrets Regularly
+
+Establish a rotation schedule:
+- API tokens: Every 6-12 months
+- Service account tokens: Annually
+- Immediately if potentially exposed
 
 ---
 
-## 8. Keep Action Versions Pinned (But Updated)
+## Branch Protection Integration
 
-- Use specific version tags (e.g. `actions/checkout@v4`) rather than `@main` or `@master`
-- Subscribe to Dependabot alerts for GitHub Actions to get notified of updates
-- Review changelogs when updating action versions
+Use branch protection rules to enforce security scanning as a merge gate:
 
----
-
-## 9. Schedule Scans, Not Just PRs
-
-Some vulnerability classes are only discovered over time (new CVEs against existing dependencies). Run scheduled scans weekly:
+1. Go to **Settings → Branches → Branch protection rules**
+2. Add a rule for your main branch
+3. Enable **Require status checks to pass before merging**
+4. Select the security scan jobs
 
 ```yaml
-schedule:
-  - cron: '0 6 * * 1'  # Every Monday at 6am UTC
+# Required status checks to configure:
+# - CodeQL / Python Analysis (required)
+# - Dependency Review (required, PRs only)
+# - Bandit Security Scan (required)
+```
+
+### Start with Non-Blocking Scans
+
+When first introducing security scanning, use `continue-on-error: true` to avoid blocking developers:
+
+```yaml
+- name: Run Security Scan
+  continue-on-error: true  # Review results before enforcing
+```
+
+Remove `continue-on-error` once you've tuned the tool and addressed initial findings.
+
+---
+
+## Triage and Remediation
+
+### Security Finding Lifecycle
+
+```
+New Finding
+    │
+    ├─→ Confirm: Is this a real vulnerability?
+    │       │
+    │       ├─ No  → Dismiss with explanation (false positive)
+    │       │
+    │       └─ Yes → Is it exploitable in our context?
+    │                   │
+    │                   ├─ No  → Accept risk, document exception
+    │                   │
+    │                   └─ Yes → Fix it!
+```
+
+### Remediation SLAs
+
+Establish and enforce SLAs for security fixes:
+
+| Severity | SLA |
+|----------|-----|
+| Critical | 24 hours |
+| High | 7 days |
+| Medium | 30 days |
+| Low | 90 days |
+
+### Tracking Security Debt
+
+Use GitHub Issues with a `security` label to track security findings:
+
+```bash
+# Create an issue from the Security tab finding
+# Label: security, severity:high
+# Assign to: responsible developer
+# Due date: Set based on SLA
 ```
 
 ---
 
-## 10. DAST Requires a Running Application
+## Building a Security Culture
 
-DAST workflows (StackHawk, NeuraLegion, etc.) test a live application. Best practices:
+### Make Security Feedback Actionable
 
-- Run DAST against a **staging environment** — never production
-- Ensure test data is safe to scan (no real PII/PCI data)
-- Use authentication configuration so the scanner can reach protected endpoints
-- Rate-limit DAST to avoid overwhelming your staging environment
+Good security feedback includes:
+- What the vulnerability is
+- Why it's a problem
+- How to fix it
+- A code example
 
----
+CodeQL and Semgrep are especially good at providing remediation guidance alongside findings.
 
-## 11. IaC Scanning Before Deployment
+### Don't Block on Every Finding
 
-Always run IaC scanning (Terraform, CloudFormation) before applying infrastructure changes:
+Start with `continue-on-error: true` and only enforce blocking checks on high/critical findings. Developer buy-in is essential for sustainable security.
 
-- Add IaC scanning as a PR gate — block merges with critical IaC issues
-- Scan all IaC changes, not just new infrastructure
-- Use separate policies for development and production environments
+### Celebrate Security Improvements
 
----
+Track and share metrics:
+- Number of vulnerabilities found and fixed
+- Mean time to remediate
+- Coverage improvements
+- CVEs caught before production
 
-## 12. Document Your Security Posture
+### Security as Code Review
 
-Maintain a `SECURITY.md` (already included in GrowKudos) that documents:
-
-- Which security tools are in use
-- How to report vulnerabilities
-- SLAs for fixing security issues
-- The team or individual responsible for security reviews
-
----
-
-## 13. Dependency Management Hygiene
-
-Beyond scanning, good dependency hygiene reduces your attack surface:
-
-- Enable Dependabot for automated dependency updates
-- Regularly prune unused dependencies
-- Prefer well-maintained packages with active security policies
-- Pin direct dependencies to specific versions in production
-
----
-
-## 14. Treat Security Findings Like Bugs
-
-Security findings should go through your normal bug-tracking process:
-
-- Create issues for every confirmed finding
-- Prioritise by severity (Critical → High → Medium → Low)
-- Set fix SLAs: Critical: 24h, High: 7 days, Medium: 30 days, Low: 90 days
-- Track progress in your sprint/backlog
-
----
-
-## 15. Review Your Security Setup Periodically
-
-Security tooling evolves quickly. Every quarter:
-
-- Review which tools are in use and whether they're still providing value
-- Check for new tools that may fill gaps in your current coverage
-- Update action versions
-- Re-evaluate suppressed/accepted risks
+Include security scanning results in code review discussions. Treat security findings the same as bugs — they belong in the definition of done.

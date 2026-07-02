@@ -1,41 +1,50 @@
 ## Description
 
-<!-- Describe what this PR does. If it adds a new workflow, explain the tool. -->
+<!-- Briefly describe what this PR does -->
 
 ## Type of Change
 
-- [ ] New workflow (adds a new security scanning tool)
-- [ ] Workflow improvement (updates/fixes an existing workflow)
+- [ ] New workflow (adding a new security tool)
+- [ ] Workflow update (fixing or improving an existing workflow)
 - [ ] Documentation update
-- [ ] npm package change (index.js, package.json)
-- [ ] Bug fix
+- [ ] New example
 - [ ] Other (describe below)
 
-## Checklist
+## Workflow Details (for new/updated workflows)
 
-### For new workflows
-- [ ] Workflow is placed in `.github/workflows/`
-- [ ] Workflow file name matches the tool name (e.g. `trivy.yml`)
-- [ ] Workflow has `push`, `pull_request`, and optionally `schedule` triggers
-- [ ] Workflow uses `permissions:` to restrict the GITHUB_TOKEN
-- [ ] No hardcoded secrets — all credentials use `${{ secrets.* }}`
-- [ ] Workflow uploads SARIF results to GitHub Security tab (if supported)
-- [ ] Workflow uses latest stable action versions (e.g. `actions/checkout@v4`)
-- [ ] `index.js` updated with the new workflow metadata
-- [ ] `TOOLS_GUIDE.md` updated with documentation for the new tool
-- [ ] `COMPARISON_MATRIX.md` updated if applicable
-- [ ] `README.md` tool matrix updated
-- [ ] `CHANGELOG.md` updated
+**Workflow file:** `.github/workflows/[filename].yml`  
+**Tool name:**  
+**Tool category:** SAST / SCA / DAST / Container / IaC / Quality / Other  
+**Tool website:**  
+**Secrets required:** (list any `${{ secrets.* }}` values needed, or "None")
 
-### For all PRs
-- [ ] I have read [CONTRIBUTING.md](../CONTRIBUTING.md)
-- [ ] I have tested this change
-- [ ] I have updated relevant documentation
+## Testing
+
+- [ ] I have tested this workflow on a real repository
+- [ ] The workflow runs successfully end-to-end
+- [ ] SARIF upload works (if applicable)
+- [ ] Tested on both passing and failing scan scenarios
+
+## Documentation Updated
+
+- [ ] Added tool to `TOOLS.md`
+- [ ] Added/updated entry in `README.md`
+- [ ] Added section to `TOOLS_GUIDE.md`
+- [ ] Added row to `COMPARISON_MATRIX.md`
+- [ ] Not applicable (documentation-only PR)
+
+## Quality Checklist
+
+- [ ] No hardcoded secrets or credentials
+- [ ] `permissions:` block uses minimum required permissions
+- [ ] Uses `actions/checkout@v4` or later
+- [ ] Comment header describes the tool with links
+- [ ] Follows naming convention (`tool-name.yml`, kebab-case)
 
 ## Related Issues
 
-<!-- Link related issues: Closes #123, Fixes #456 -->
+Closes #(issue number)
 
 ## Additional Notes
 
-<!-- Any extra context reviewers should know -->
+<!-- Any other context, screenshots, or information -->

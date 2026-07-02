@@ -1,189 +1,362 @@
 # Contributing to GrowKudos
 
-Thank you for your interest in contributing to GrowKudos! This guide explains how to add new workflows, improve existing ones, and contribute to documentation.
+Thank you for your interest in contributing to GrowKudos! This project is a community-maintained collection of GitHub Actions security scanning workflows, and contributions of all kinds are welcome.
 
 ---
 
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
-- [How to Contribute](#how-to-contribute)
+- [How Can I Contribute?](#how-can-i-contribute)
+- [Getting Started](#getting-started)
 - [Adding a New Workflow](#adding-a-new-workflow)
 - [Improving Existing Workflows](#improving-existing-workflows)
-- [Documentation Contributions](#documentation-contributions)
-- [npm Package Contributions](#npm-package-contributions)
-- [Pull Request Process](#pull-request-process)
-- [Development Setup](#development-setup)
+- [Improving Documentation](#improving-documentation)
+- [Submitting a Pull Request](#submitting-a-pull-request)
+- [Workflow Quality Standards](#workflow-quality-standards)
+- [Commit Message Format](#commit-message-format)
+- [Review Process](#review-process)
 
 ---
 
 ## Code of Conduct
 
-Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold these standards. Please report unacceptable behavior to the repository maintainers.
 
 ---
 
-## How to Contribute
+## How Can I Contribute?
 
-1. **Fork** the repository on GitHub
-2. **Create a branch** for your change: `git checkout -b feature/add-trivy-workflow`
-3. **Make your changes** following the guidelines below
-4. **Test your changes** locally
-5. **Submit a pull request** using the pull request template
+### 🐛 Reporting Bugs
+
+If a workflow fails to run, produces incorrect results, or uses outdated action versions:
+
+1. Check [existing issues](https://github.com/jvzhu/GrowKudos/issues) to avoid duplicates
+2. Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md)
+3. Include: the workflow filename, error message, and your repository context
+
+### 💡 Suggesting New Workflows
+
+Know a security tool not yet included in GrowKudos?
+
+1. Check [existing issues](https://github.com/jvzhu/GrowKudos/issues) and the current workflow list
+2. Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md)
+3. Provide: tool name, category, documentation link, and example configuration
+
+### 📝 Improving Documentation
+
+Documentation improvements are always welcome:
+- Fix typos, broken links, or outdated information
+- Add examples, explanations, or clarifications
+- Translate documentation (create a `docs/` subdirectory for translations)
+
+### ⬆️ Updating Action Versions
+
+GitHub Actions change versions regularly. Help keep workflows current:
+- Check for outdated `uses:` references (e.g., `actions/checkout@v3` → `@v4`)
+- Verify the update doesn't break the workflow behavior
+- Include a note in the PR about what changed
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- A GitHub account
+- Basic familiarity with YAML syntax
+- Understanding of GitHub Actions (helpful but not required)
+
+### Fork and Clone
+
+```bash
+# Fork the repository on GitHub, then:
+git clone https://github.com/YOUR_USERNAME/GrowKudos.git
+cd GrowKudos
+
+# Add the upstream remote
+git remote add upstream https://github.com/jvzhu/GrowKudos.git
+```
+
+### Keep Your Fork Updated
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+```
 
 ---
 
 ## Adding a New Workflow
 
-### Checklist for new workflows
+### 1. Create the Workflow File
 
-Before submitting a new workflow, ensure it meets these criteria:
+Create a new `.yml` file in `.github/workflows/`:
 
-- [ ] The workflow file is named descriptively (e.g. `trivy.yml`, `grype.yml`)
-- [ ] The workflow is placed in `.github/workflows/`
-- [ ] The workflow triggers on `push`, `pull_request`, and optionally `schedule`
-- [ ] The workflow uploads results as SARIF to the GitHub Security tab (where supported by the tool)
-- [ ] The workflow uses the latest stable version of referenced actions (e.g. `actions/checkout@v4`)
-- [ ] The workflow uses `permissions:` to restrict the token to minimum required permissions
-- [ ] Secrets are referenced from `${{ secrets.* }}` — no hardcoded credentials
-- [ ] The workflow includes a comment block explaining what it does
+```bash
+# File naming convention: tool-name.yml (kebab-case, lowercase)
+touch .github/workflows/my-new-tool.yml
+```
 
-### Workflow template
+### 2. Follow the Workflow Template
 
-Use this as a starting point:
+Use this template as a starting point:
 
 ```yaml
 # This workflow uses actions that are not certified by GitHub.
-# <Tool name> - <brief description>
-# <Tool URL or marketplace link>
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
 
-name: <Tool Name>
+# [Brief description of what the tool does]
+# [Link to tool documentation]
+# [Link to GitHub Action]
+
+name: [Tool Name] Security Scan
+
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   schedule:
-    - cron: '0 0 * * 0'  # Weekly on Sunday
+    - cron: '0 6 * * 1'       # Weekly on Mondays
+
+permissions:
+  contents: read              # Minimum required permissions
+  security-events: write      # Required for SARIF upload (if applicable)
+  actions: read               # Required for private repos
 
 jobs:
   scan:
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-
+    name: [Tool Name] Analysis
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Run <Tool Name>
-        uses: vendor/action-name@version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run [Tool Name]
+        uses: tool-vendor/action-name@v1
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # tool-specific options here
+          # Required parameters
+          api-key: ${{ secrets.TOOL_API_KEY }}
+          # Optional parameters with sensible defaults
+          output-format: sarif
 
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always()          # Upload even if scan found issues
         with:
           sarif_file: results.sarif
+          category: tool-name
 ```
 
-### Updating index.js
+### 3. Workflow Requirements Checklist
 
-After adding a workflow, add its metadata to `index.js` in the `WORKFLOWS` object:
+Before submitting, verify your workflow:
 
-```js
-'your-tool': {
-  name: 'Your Tool Name',
-  file: 'your-tool.yml',
-  category: 'sast',        // sast | dast | sca | container | iac | enterprise | supply-chain | quality
-  language: ['python'],    // or ['multiple'] for multi-language tools
-  description: 'One-line description of what the tool does',
-  license: 'MIT',          // SPDX license identifier or 'Proprietary'
-  free: true,              // true if there is no cost for standard usage
-},
-```
+- [ ] Uses `actions/checkout@v4` (not older versions)
+- [ ] Includes `permissions:` block with minimum required permissions
+- [ ] Has a descriptive comment header explaining the tool
+- [ ] Includes links to the tool's documentation and GitHub Action
+- [ ] Uses `${{ secrets.SECRET_NAME }}` for any API keys (never hardcoded)
+- [ ] Triggers on `push`, `pull_request`, AND `schedule`
+- [ ] Uploads SARIF results if the tool supports it
+- [ ] Uses `if: always()` on the SARIF upload step
+- [ ] Tested successfully on at least one repository
+
+### 4. Update Documentation
+
+After adding a workflow, update the relevant documentation:
+
+- Add the tool to `TOOLS.md`
+- Add an entry to `README.md` tool matrix tables
+- Add a section to `TOOLS_GUIDE.md`
+- Add a row to `COMPARISON_MATRIX.md`
 
 ---
 
 ## Improving Existing Workflows
 
-When updating existing workflows:
+### Updating Action Versions
 
-- **Keep the spirit of the original** — don't change the tool or fundamentally alter what it scans
-- **Update action versions** — use the latest stable version of referenced GitHub Actions
-- **Maintain trigger events** — keep `push`, `pull_request`, and `schedule` triggers unless there is good reason
-- **Test the updated workflow** in a fork before submitting
+```yaml
+# Before
+uses: actions/checkout@v3
+
+# After
+uses: actions/checkout@v4
+```
+
+Always pin to a major version tag (e.g., `@v4`), not a specific SHA or minor version, unless there's a specific reason (security pinning requires both the tag and SHA comment).
+
+### Fixing Deprecated Syntax
+
+GitHub Actions evolves. Common updates needed:
+- `set-output` → `$GITHUB_OUTPUT`
+- `save-state` → `$GITHUB_STATE`
+- `add-path` → `$GITHUB_PATH`
+- Node.js 12/16 actions → Node.js 20
+
+### Adding Configuration Options
+
+When adding optional parameters, provide sensible defaults and document them with comments:
+
+```yaml
+with:
+  severity: HIGH          # Options: LOW, MEDIUM, HIGH, CRITICAL
+  fail-on-severity: HIGH  # Fail workflow if findings at this severity or above
+  output-file: results.sarif
+```
 
 ---
 
-## Documentation Contributions
+## Improving Documentation
 
-Documentation files live in the repository root. When contributing docs:
+### Documentation Files
 
-- Use clear, concise language
-- Use Markdown tables for comparison data
-- Code blocks should have language hints (` ```yaml `, ` ```js `, etc.)
-- Check links with a Markdown linter before submitting
+| File | Purpose |
+|------|---------|
+| `README.md` | Project overview and quick reference |
+| `GETTING_STARTED.md` | Beginner setup guide |
+| `TOOLS_GUIDE.md` | Detailed tool documentation |
+| `COMPARISON_MATRIX.md` | Tool comparison tables |
+| `TOOLS.md` | Tool registry |
+| `BEST_PRACTICES.md` | Security scanning best practices |
+| `PERFORMANCE_GUIDE.md` | CI/CD optimization tips |
+| `FAQ.md` | Frequently asked questions |
+
+### Documentation Standards
+
+- Use proper Markdown formatting
+- Include a table of contents for documents over 500 words
+- Use code blocks with language hints for all code examples
+- Keep tables aligned for readability
+- Link between related documents
 
 ---
 
-## npm Package Contributions
+## Submitting a Pull Request
 
-The npm package is defined by `package.json` and `index.js`. When contributing to the package:
-
-### Development setup
+### 1. Create a Feature Branch
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/GrowKudos.git
-cd GrowKudos
-node --version  # requires Node.js 14+
+git checkout -b feat/add-xyz-scanner
+# or
+git checkout -b fix/update-bandit-action-version
+# or
+git checkout -b docs/improve-getting-started
 ```
 
-### Testing the package
+### 2. Make Your Changes
+
+Follow the standards above and test your changes.
+
+### 3. Commit Your Changes
 
 ```bash
-# Run the built-in smoke tests
-npm test
-
-# Test the API manually
-node -e "const g = require('.'); console.log(g.listWorkflows().length, 'workflows');"
-node -e "const g = require('.'); console.log(g.getCategories());"
-node -e "const g = require('.'); console.log(Object.keys(g.getFreeWorkflows()));"
+git add .
+git commit -m "feat: add XYZ security scanner workflow"
 ```
 
-### Package versioning
+Follow the [commit message format](#commit-message-format).
 
-- Follow [Semantic Versioning](https://semver.org/)
-- Bump `patch` for bug fixes
-- Bump `minor` for new workflows or new API functions
-- Bump `major` for breaking API changes
+### 4. Push and Open a PR
+
+```bash
+git push origin feat/add-xyz-scanner
+```
+
+Then open a pull request on GitHub using the [PR template](.github/PULL_REQUEST_TEMPLATE.md).
 
 ---
 
-## Pull Request Process
+## Workflow Quality Standards
 
-1. Fill out the pull request template completely
-2. Ensure your PR title is descriptive (e.g. `feat: add Trivy container scanning workflow`)
-3. Link any related issues in the PR description
-4. Request a review from a maintainer
-5. Address review feedback promptly
+All workflows must meet these standards:
 
-### Commit message format
+### Security Standards
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
+- ✅ No hardcoded secrets, tokens, or credentials
+- ✅ `permissions:` block with minimum required permissions
+- ✅ Sensitive data accessed only via `${{ secrets.* }}`
+- ✅ Only reference well-known, maintained GitHub Actions
+
+### Compatibility Standards
+
+- ✅ Uses `actions/checkout@v4` or later
+- ✅ Uses `ubuntu-latest` as the runner (unless tool requires otherwise)
+- ✅ Compatible with both public and private repositories (document any restrictions)
+
+### Documentation Standards
+
+- ✅ Descriptive comment header with tool description and links
+- ✅ Inline comments for non-obvious configuration
+- ✅ Secrets requirements listed in comments
+
+### Testing Standards
+
+- ✅ Workflow has been tested and confirmed to run successfully
+- ✅ SARIF upload tested (if applicable)
+- ✅ Both passing and failing scan scenarios considered
+
+---
+
+## Commit Message Format
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
 
 ```
-feat: add Grype vulnerability scanner workflow
-fix: update checkout action to v4 in bandit.yml
-docs: add Trivy usage example to TOOLS_GUIDE.md
-chore: bump semgrep action to latest version
+<type>(<scope>): <short description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+| Type | When to Use |
+|------|------------|
+| `feat` | Adding a new workflow or feature |
+| `fix` | Fixing a broken workflow or bug |
+| `docs` | Documentation-only changes |
+| `chore` | Maintenance (updating action versions, etc.) |
+| `refactor` | Improving workflow structure without changing behavior |
+
+### Examples
+
+```bash
+feat: add Endor Labs dependency scanning workflow
+fix: update Bandit action to v1.7.5 to fix SARIF upload
+docs: add StackHawk configuration example to TOOLS_GUIDE
+chore: update checkout action to v4 across all workflows
 ```
 
 ---
 
-## Questions?
+## Review Process
 
-Open an issue or start a discussion on the [GitHub repository](https://github.com/jvzhu/GrowKudos). We are happy to help!
+### What Maintainers Look For
+
+1. **Correctness** — Does the workflow run successfully?
+2. **Security** — No hardcoded secrets, minimal permissions
+3. **Quality** — Follows workflow standards
+4. **Documentation** — Relevant docs updated
+5. **Value** — Does this add meaningful value to the collection?
+
+### Timeline
+
+- Initial review: within 7 days
+- Feedback addressed: within 14 days
+- Merge: after one maintainer approval
+
+### Getting Help
+
+If you're unsure about anything, open an issue with the `question` label or leave a comment on your PR. We're happy to help!
+
+---
+
+Thank you for contributing to GrowKudos! 🌱

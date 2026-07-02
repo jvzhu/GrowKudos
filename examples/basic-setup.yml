@@ -1,8 +1,16 @@
-# Basic Security Setup - CodeQL only
-# Copy this file to .github/workflows/security.yml in your repository
-# This is the minimal recommended setup for any project.
+# Basic Security Setup — Single Tool
+#
+# This is the simplest possible security scanning configuration using CodeQL.
+# CodeQL is free for public repositories and requires zero configuration.
+# Copy this file to .github/workflows/security.yml in your repository.
+#
+# What this scans:
+#   - Static code analysis for security vulnerabilities
+#   - Supports: C, C++, C#, Java, JavaScript, TypeScript, Python, Ruby, Go, Swift
+#
+# Results appear in: Security tab → Code scanning alerts
 
-name: Security Scan (Basic)
+name: Security Scan
 
 on:
   push:
@@ -10,22 +18,24 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
-    - cron: '0 6 * * 1'  # Every Monday at 6am UTC
+    - cron: '0 6 * * 1'  # Weekly on Mondays at 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 
 jobs:
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
 
     strategy:
       fail-fast: false
       matrix:
-        # Update this list to match your repository's languages
-        language: [ 'javascript', 'python' ]
+        # Adjust to match your repository's languages
+        # Options: c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+        language: [ 'python' ]
 
     steps:
       - name: Checkout repository
@@ -35,8 +45,7 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          # To add more queries: https://docs.github.com/en/code-security/code-scanning/using-codeql-code-scanning/configuring-code-scanning#using-queries-in-ql-packs
-          # queries: security-extended,security-and-quality
+          # To use custom queries, add: queries: security-extended
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
@@ -44,4 +53,4 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{matrix.language}}"
+          category: "/language:${{ matrix.language }}"
