@@ -1,0 +1,246 @@
+name: Create v1.0.0 Release, Add Topics & Close Stale PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print what would happen, do nothing)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create tags, releases
+      pull-requests: write  # close stale PR
+      issues: write  # allow --comment when closing PR
+      administration: write  # update repository topics
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # ── 1. Set repository topics (replaces all existing topics) ───────────────
+      - name: Set repository topics
+        if: inputs.dry_run == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/topics \
+            -f 'names[]=github-actions' \
+            -f 'names[]=security' \
+            -f 'names[]=security-scanning' \
+            -f 'names[]=sast' \
+            -f 'names[]=sca' \
+            -f 'names[]=dast' \
+            -f 'names[]=infrastructure-as-code' \
+            -f 'names[]=github-security' \
+            -f 'names[]=ci-cd' \
+            -f 'names[]=workflow-templates' \
+            -f 'names[]=open-source'
+          echo "✅ Topics added"
+
+      - name: Dry-run — print topics
+        if: inputs.dry_run == 'true'
+        run: |
+          echo "Would set topics (replaces all existing topics): github-actions security security-scanning sast sca dast infrastructure-as-code github-security ci-cd workflow-templates open-source"
+
+      # ── 2. Create release v1.0.0 (this triggers npm-publish.yml) ───────────
+      - name: Create GitHub Release v1.0.0
+        if: inputs.dry_run == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v1.0.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "ℹ️ Release v1.0.0 already exists — skipping"
+            exit 0
+          fi
+          gh release create v1.0.0 --repo "${{ github.repository }}" \
+            --title "GrowKudos v1.0.0 - Professional Security Scanning Workflows" \
+            --notes "## 🎉 GrowKudos v1.0.0 — First Stable Release
+
+GrowKudos is a curated collection of production-ready GitHub Actions security-scanning workflow templates, packaged as an installable npm module so teams can query, copy, and automate their DevSecOps setup.
+
+---
+
+### 📦 npm Package
+
+Install from GitHub Packages:
+
+\`\`\`bash
+# Authenticate once
+npm login --scope=@jvzhu --auth-type=legacy --registry=https://npm.pkg.github.com
+
+# Install
+npm install @jvzhu/growkudos
+\`\`\`
+
+---
+
+### 🛡️ 42+ Security Scanning Workflow Templates
+
+| Category | Tools included |
+|----------|---------------|
+| **SAST** | Bandit, CodeQL, Semgrep, DevSkim, Pyre, Pysa, Pylint, OSSAR, Checkmarx, Checkmarx One, Fortify, JFrog SAST |
+| **DAST** | NeuraLegion (Bright), Mayhem for API, StackHawk, APIsec, EthicalCheck |
+| **SCA** | Dependency Review, OSV Scanner, Snyk, Debricked, CRDA, Endor Labs, Frogbot Scan PR, Frogbot Scan & Fix |
+| **Container** | Sysdig Secure, Black Duck |
+| **IaC** | Policy Validator (CloudFormation), Policy Validator (Terraform) |
+| **Enterprise** | Veracode, Synopsys Action, Synopsys IO, Microsoft Defender for DevOps |
+| **Supply Chain** | SLSA Generic Publisher |
+| **Quality** | Codacy |
+
+---
+
+### 📚 Complete Documentation Suite
+
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | Full tool matrix, quick start, integration guide |
+| [GETTING_STARTED.md](GETTING_STARTED.md) | Step-by-step setup for beginners |
+| [TOOLS_GUIDE.md](TOOLS_GUIDE.md) | Per-tool deep dives with configuration snippets |
+| [COMPARISON_MATRIX.md](COMPARISON_MATRIX.md) | Side-by-side feature, cost & coverage comparison |
+| [npm-USAGE.md](npm-USAGE.md) | Full API reference for the npm package |
+| [BEST_PRACTICES.md](BEST_PRACTICES.md) | 15 DevSecOps scanning best practices |
+| [PERFORMANCE_GUIDE.md](PERFORMANCE_GUIDE.md) | Parallelism, caching, cost optimization |
+| [TOOLS.md](TOOLS.md) | Complete tool registry |
+| [FAQ.md](FAQ.md) | 30+ frequently asked questions |
+
+---
+
+### 🚀 Getting Started
+
+👉 **[Read GETTING_STARTED.md](https://github.com/jvzhu/GrowKudos/blob/main/GETTING_STARTED.md)**
+
+**Option 1 — copy a single workflow:**
+
+1. Browse [.github/workflows/](https://github.com/jvzhu/GrowKudos/tree/main/.github/workflows)
+2. Pick a tool (e.g. \`semgrep.yml\`)
+3. Copy it into your repo's \`.github/workflows/\` directory
+
+**Option 2 — use the npm package:**
+
+\`\`\`js
+const growkudos = require('@jvzhu/growkudos');
+
+// List all 35+ workflow IDs
+growkudos.listWorkflows();
+
+// Get all free SAST tools
+growkudos.getWorkflowsByCategory('sast');
+
+// Copy Semgrep workflow into your project
+const fs = require('fs');
+fs.writeFileSync('.github/workflows/semgrep.yml', growkudos.getWorkflowContent('semgrep'));
+\`\`\`
+
+---
+
+### 📊 Tool Comparison Matrix
+
+See [COMPARISON_MATRIX.md](https://github.com/jvzhu/GrowKudos/blob/main/COMPARISON_MATRIX.md) for a full side-by-side comparison covering:
+
+- Scanning type & language support
+- Free vs. commercial licensing
+- SARIF upload support
+- OWASP coverage
+- Recommended stacks by project type (startup, mid-size, enterprise)
+
+---
+
+### 💡 Examples & Best Practices
+
+Ready-to-use example workflows in [examples/](https://github.com/jvzhu/GrowKudos/tree/main/examples):
+
+| Example | Description |
+|---------|-------------|
+| \`basic-setup.yml\` | CodeQL only — zero config |
+| \`comprehensive-setup.yml\` | CodeQL + Semgrep + DevSkim + Dependency Review + OSV Scanner |
+| \`python-project.yml\` | Bandit + CodeQL + Semgrep + OSV Scanner |
+| \`nodejs-project.yml\` | CodeQL + Semgrep + DevSkim + Dependency Review + npm audit |
+| \`npm-usage.js\` | Node.js script demonstrating the full package API |
+
+See [BEST_PRACTICES.md](https://github.com/jvzhu/GrowKudos/blob/main/BEST_PRACTICES.md) and [PERFORMANCE_GUIDE.md](https://github.com/jvzhu/GrowKudos/blob/main/PERFORMANCE_GUIDE.md) for optimization tips.
+
+---
+
+### 🤝 Community Contributions Welcome
+
+We welcome contributions of new workflow templates, documentation improvements, and examples!
+
+- Read [CONTRIBUTING.md](https://github.com/jvzhu/GrowKudos/blob/main/CONTRIBUTING.md) before submitting a pull request.
+- Review our [CODE_OF_CONDUCT.md](https://github.com/jvzhu/GrowKudos/blob/main/CODE_OF_CONDUCT.md).
+- Use the [issue templates](https://github.com/jvzhu/GrowKudos/issues/new/choose) to report bugs or request new tools.
+
+---
+
+### ⚙️ Installation Summary
+
+| Method | Command |
+|--------|---------|
+| npm install | \`npm install @jvzhu/growkudos\` |
+| Copy single workflow | Copy any \`.yml\` from \`.github/workflows/\` |
+| Clone repo | \`git clone https://github.com/jvzhu/GrowKudos.git\` |
+
+---
+
+*MIT License · Made with ❤️ for the DevSecOps community*" \
+            --target main
+          echo "✅ Release v1.0.0 created — npm-publish.yml will now trigger automatically"
+
+      - name: Dry-run — print release info
+        if: inputs.dry_run == 'true'
+        run: |
+          echo "Would create release v1.0.0 on main branch"
+          echo "Title: GrowKudos v1.0.0 - Professional Security Scanning Workflows"
+          echo "This would trigger npm-publish.yml automatically"
+
+      # ── 3. Close stale PR #1 (superseded by PR #2 which merged all content) ─
+      - name: Close stale PR #1
+        if: inputs.dry_run == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_STATE=$(gh pr view 1 --repo ${{ github.repository }} --json state -q '.state' 2>/dev/null || echo "not_found")
+          if [ "$PR_STATE" = "OPEN" ]; then
+            gh pr close 1 \
+              --repo ${{ github.repository }} \
+              --comment "Closing as superseded by PR #2, which merged all documentation content into main."
+            echo "✅ PR #1 closed"
+          else
+            echo "ℹ️ PR #1 is already $PR_STATE — nothing to do"
+          fi
+
+      - name: Dry-run — print PR status
+        if: inputs.dry_run == 'true'
+        run: |
+          echo "Would close PR #1 with 'superseded by PR #2' comment"
+
+      # ── 4. Summary ──────────────────────────────────────────────────────────
+      - name: Print summary
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "=== DRY RUN COMPLETE — no changes made ==="
+          else
+            echo ""
+            echo "=== GrowKudos Publishing Pipeline Complete ==="
+            echo "✅ Repository topics set (11 topics)"
+            echo "✅ GitHub Release v1.0.0 created"
+            echo "✅   → npm-publish.yml triggered automatically"
+            echo "✅ PR #1 closed as superseded"
+            echo ""
+            echo "Check package at: https://github.com/jvzhu/GrowKudos/packages"
+            echo "Check release at: https://github.com/jvzhu/GrowKudos/releases/tag/v1.0.0"
+          fi
