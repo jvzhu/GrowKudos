@@ -86,6 +86,7 @@ jobs:
         run: semgrep scan --sarif --output semgrep.sarif
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}  # Optional
+        continue-on-error: true
 
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@v3
