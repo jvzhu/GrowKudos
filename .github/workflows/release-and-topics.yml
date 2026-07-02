@@ -16,9 +16,10 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # create tags, releases
-      pull-requests: write  # close stale PR
-
+      contents: write          # create tags, releases
+      pull-requests: write     # close stale PR
+      issues: write            # allow commenting on PRs/issues
+      administration: write    # update repository topics
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
