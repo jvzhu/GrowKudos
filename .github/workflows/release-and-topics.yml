@@ -55,7 +55,7 @@ jobs:
       - name: Dry-run — print topics
         if: inputs.dry_run == 'true'
         run: |
-          echo "Would add topics: github-actions security security-scanning sast sca dast infrastructure-as-code github-security ci-cd workflow-templates open-source"
+          echo "Would set topics (replaces all existing topics): github-actions security security-scanning sast sca dast infrastructure-as-code github-security ci-cd workflow-templates open-source"
 
       # ── 2. Create release v1.0.0 (this triggers npm-publish.yml) ───────────
       - name: Create GitHub Release v1.0.0
