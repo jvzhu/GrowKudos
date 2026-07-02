@@ -1,0 +1,56 @@
+# Basic Security Setup — Single Tool
+#
+# This is the simplest possible security scanning configuration using CodeQL.
+# CodeQL is free for public repositories and requires zero configuration.
+# Copy this file to .github/workflows/security.yml in your repository.
+#
+# What this scans:
+#   - Static code analysis for security vulnerabilities
+#   - Supports: C, C++, C#, Java, JavaScript, TypeScript, Python, Ruby, Go, Swift
+#
+# Results appear in: Security tab → Code scanning alerts
+
+name: Security Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Mondays at 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Adjust to match your repository's languages
+        # Options: c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+        language: [ 'python' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # To use custom queries, add: queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

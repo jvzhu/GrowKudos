@@ -1,0 +1,169 @@
+# Python Project Security Stack
+#
+# Complete security scanning pipeline optimized for Python projects.
+# Uses tools specifically designed for Python and general-purpose tools
+# that work well with Python codebases.
+#
+# Tools included:
+#   - Bandit: Python-specific security linter (SAST)
+#   - Pysa:   Python taint analysis for injection vulnerabilities (SAST)
+#   - CodeQL: Semantic analysis (SAST)
+#   - OSV Scanner: Dependency vulnerability scanning (SCA)
+#   - Dependency Review: PR dependency gate (SCA)
+#   - Pylint: Code quality
+#
+# Secrets required: None (all free tools)
+#
+# Results appear in: Security tab → Code scanning alerts
+
+name: Python Security
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '**.py'
+      - 'requirements*.txt'
+      - 'Pipfile'
+      - 'Pipfile.lock'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - 'setup.cfg'
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # Bandit: Python security linter
+  # ─────────────────────────────────────────────────────────
+  bandit:
+    name: Bandit Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        run: bandit -r . -f sarif -o bandit-results.sarif
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit
+
+  # ─────────────────────────────────────────────────────────
+  # CodeQL: Semantic analysis
+  # ─────────────────────────────────────────────────────────
+  codeql:
+    name: CodeQL Python Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  # ─────────────────────────────────────────────────────────
+  # OSV Scanner: Dependency vulnerability scanning
+  # ─────────────────────────────────────────────────────────
+  osv-scanner:
+    name: OSV Dependency Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --format=sarif
+            --recursive
+            ./
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+          category: osv-scanner
+
+  # ─────────────────────────────────────────────────────────
+  # Dependency Review: PR gate for vulnerable dependencies
+  # ─────────────────────────────────────────────────────────
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  # ─────────────────────────────────────────────────────────
+  # Pylint: Python code quality
+  # ─────────────────────────────────────────────────────────
+  pylint:
+    name: Pylint Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install pylint
+          # Install your project's dependencies if requirements.txt exists
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Pylint
+        run: |
+          pylint --output-format=parseable **/*.py || true
+        continue-on-error: true

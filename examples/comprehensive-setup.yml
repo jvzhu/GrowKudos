@@ -1,0 +1,144 @@
+# Comprehensive Security Setup — All Recommended Free Tools
+#
+# This configuration integrates all recommended free/open-source security
+# scanning tools into a single workflow file. It provides broad coverage
+# across SAST, SCA, and dependency scanning categories.
+#
+# Tools included:
+#   - CodeQL: Deep semantic code analysis (SAST)
+#   - Semgrep: Fast pattern-based scanning (SAST)
+#   - Dependency Review: Blocks vulnerable dependency PRs (SCA)
+#   - OSV Scanner: Scans all dependencies against OSV database (SCA)
+#
+# Secrets required: None (all tools used here are free)
+#
+# Results appear in: Security tab → Code scanning alerts
+
+name: Comprehensive Security
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Mondays
+  workflow_dispatch:       # Allow manual trigger
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # SAST: CodeQL — Deep semantic code analysis
+  # ─────────────────────────────────────────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Adjust for your repository's languages
+        language: [ 'python' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ─────────────────────────────────────────────────────────
+  # SAST: Semgrep — Fast multi-language pattern scanning
+  # ─────────────────────────────────────────────────────────
+  semgrep:
+    name: Semgrep Analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: semgrep scan --sarif --output semgrep.sarif
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}  # Optional
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  # ─────────────────────────────────────────────────────────
+  # SCA: Dependency Review — Block vulnerable deps in PRs
+  # ─────────────────────────────────────────────────────────
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  # ─────────────────────────────────────────────────────────
+  # SCA: OSV Scanner — Comprehensive dependency scanning
+  # ─────────────────────────────────────────────────────────
+  osv-scanner:
+    name: OSV Scanner
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --format=sarif
+            --recursive
+            ./
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+          category: osv-scanner

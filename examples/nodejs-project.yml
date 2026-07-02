@@ -1,0 +1,175 @@
+# Node.js Project Security Stack
+#
+# Complete security scanning pipeline optimized for Node.js projects.
+# Uses tools with strong JavaScript/TypeScript and npm/yarn support.
+#
+# Tools included:
+#   - CodeQL: Semantic analysis for JS/TS (SAST)
+#   - Semgrep: Pattern-based scanning with JS ruleset (SAST)
+#   - Snyk: npm/yarn dependency scanning + auto-fix PRs (SCA)
+#   - OSV Scanner: Dependency scanning via OSV database (SCA)
+#   - Dependency Review: PR dependency gate (SCA)
+#
+# Secrets required:
+#   - SNYK_TOKEN (optional — remove snyk job if not available)
+#     Get free token at: https://app.snyk.io → Account Settings
+#
+# Results appear in: Security tab → Code scanning alerts
+
+name: Node.js Security
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '**.js'
+      - '**.ts'
+      - '**.jsx'
+      - '**.tsx'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'yarn.lock'
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # CodeQL: Semantic analysis for JavaScript/TypeScript
+  # ─────────────────────────────────────────────────────────
+  codeql:
+    name: CodeQL JS/TS Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
+
+  # ─────────────────────────────────────────────────────────
+  # Semgrep: Pattern-based scanning
+  # ─────────────────────────────────────────────────────────
+  semgrep:
+    name: Semgrep Analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: semgrep scan --config "p/javascript" --config "p/typescript" --sarif --output semgrep.sarif .
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}  # Optional
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  # ─────────────────────────────────────────────────────────
+  # Snyk: npm/yarn dependency scanning
+  # Requires SNYK_TOKEN secret — remove job if unavailable
+  # ─────────────────────────────────────────────────────────
+  snyk:
+    name: Snyk Dependency Scan
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SNYK_TOKEN != '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Snyk
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --sarif-file-output=snyk.sarif
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+          category: snyk
+
+  # ─────────────────────────────────────────────────────────
+  # OSV Scanner: Comprehensive dependency scanning
+  # ─────────────────────────────────────────────────────────
+  osv-scanner:
+    name: OSV Dependency Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --format=sarif
+            --recursive
+            ./
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+          category: osv-scanner
+
+  # ─────────────────────────────────────────────────────────
+  # Dependency Review: PR gate for vulnerable dependencies
+  # ─────────────────────────────────────────────────────────
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate

@@ -1,0 +1,175 @@
+# Selective Security Setup — Choose Your Tools
+#
+# This template shows how to mix and match security tools based on your
+# specific needs. Enable or disable sections by commenting/uncommenting them.
+#
+# Category options:
+#   SAST:       bandit, codeql, semgrep, devskim
+#   SCA:        dependency-review, osv-scanner, snyk
+#   DAST:       stackhawk (requires running app + HAWK_API_KEY secret)
+#   IaC:        policy-validator-cfn, policy-validator-tf
+#   Quality:    codacy, pylint
+#
+# See TOOLS_GUIDE.md for details on each tool.
+
+name: Security Scan (Selective)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+# ═══════════════════════════════════════════════════════════
+# SECTION 1: SAST — Static Application Security Testing
+# ═══════════════════════════════════════════════════════════
+
+jobs:
+
+  # ── ENABLE: Bandit (Python projects only) ───────────────
+  bandit:
+    name: Bandit Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Bandit
+        uses: jpetrucciani/bandit-check@main
+        with:
+          path: '.'
+
+  # ── ENABLE: CodeQL (multi-language) ──────────────────────
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Change to your language(s): python, javascript-typescript, java-kotlin, go, etc.
+        language: [ 'python' ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+
+  # ── ENABLE: DevSkim (fast, multi-language) ────────────────
+  devskim:
+    name: DevSkim
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run DevSkim
+        uses: microsoft/DevSkim-Action@v1
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: devskim-results.sarif
+
+# ═══════════════════════════════════════════════════════════
+# SECTION 2: SCA — Dependency Scanning
+# ═══════════════════════════════════════════════════════════
+
+  # ── ENABLE: GitHub Dependency Review (PRs only) ───────────
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  # ── ENABLE: OSV Scanner (no secrets needed) ───────────────
+  osv-scanner:
+    name: OSV Scanner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --format=sarif
+            --recursive
+            ./
+        continue-on-error: true
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+
+  # ── ENABLE: Snyk (requires SNYK_TOKEN secret) ─────────────
+  #
+  # Uncomment to enable Snyk scanning.
+  # Add SNYK_TOKEN to: Settings → Secrets → Actions
+  #
+  # snyk:
+  #   name: Snyk Security
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Run Snyk
+  #       uses: snyk/actions/node@master   # Change 'node' to: python, maven, golang, etc.
+  #       env:
+  #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  #       with:
+  #         args: --sarif-file-output=snyk.sarif
+  #       continue-on-error: true
+  #     - uses: github/codeql-action/upload-sarif@v3
+  #       if: always()
+  #       with:
+  #         sarif_file: snyk.sarif
+
+# ═══════════════════════════════════════════════════════════
+# SECTION 3: DAST — Dynamic Application Security Testing
+# ═══════════════════════════════════════════════════════════
+#
+# DAST requires a running application. Uncomment and adapt
+# the StackHawk job after setting up your app start command.
+#
+# stackhawk:
+#   name: StackHawk API Scan
+#   runs-on: ubuntu-latest
+#   steps:
+#     - uses: actions/checkout@v4
+#     - name: Start your application
+#       run: |
+#         # Replace with your app startup command
+#         python manage.py runserver &
+#         sleep 5  # Wait for app to start
+#     - name: Run StackHawk
+#       uses: stackhawk/hawkscan-action@v2
+#       with:
+#         apiKey: ${{ secrets.HAWK_API_KEY }}
+
+# ═══════════════════════════════════════════════════════════
+# SECTION 4: CODE QUALITY
+# ═══════════════════════════════════════════════════════════
+
+  # ── ENABLE: Pylint (Python) ──────────────────────────────
+  pylint:
+    name: Pylint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install Pylint
+        run: pip install pylint
+      - name: Run Pylint
+        run: pylint **/*.py
+        continue-on-error: true  # Don't fail CI on style issues
