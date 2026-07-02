@@ -122,7 +122,7 @@ jobs:
   #   steps:
   #     - uses: actions/checkout@v4
   #     - name: Run Snyk
-  #       uses: snyk/actions/node@master   # Change 'node' to: python, maven, golang, etc.
+  #       uses: snyk/actions/node@9adf32b1121593767fc3c057af55b55db032dc04  # v1.0.0 — Change 'node' to: python, maven, golang, etc.
   #       env:
   #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
   #       with:
