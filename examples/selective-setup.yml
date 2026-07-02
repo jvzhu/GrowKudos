@@ -182,5 +182,5 @@ jobs:
       - name: Install Pylint
         run: pip install pylint
       - name: Run Pylint
-        run: git ls-files '*.py' | xargs --no-run-if-empty pylint
+        run: git ls-files -z '*.py' | xargs -0 --no-run-if-empty pylint
         continue-on-error: true  # Don't fail CI on style issues
