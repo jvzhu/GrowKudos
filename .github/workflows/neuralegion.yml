@@ -149,9 +149,9 @@
 
 name: "NeuraLegion"
 
-# NOTE (GrowKudos repo): DAST requires a running application and a
-# NEURALEGION_TOKEN secret, neither of which exist in this template
-# repository — so this workflow only runs manually here.
+# NOTE (GrowKudos repo): DAST requires a running application and an
+# API token secret (this file uses NEURALEGION_TOKEN, but examples above use NEXPLOIT_TOKEN),
+# neither of which exist in this template repository — so this workflow only runs manually here.
 # When you copy this file to your own repository, restore the triggers:
 #
 # on:
