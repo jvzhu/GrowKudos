@@ -28,8 +28,8 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      # ── 1. Add repository topics ────────────────────────────────────────────
-      - name: Add repository topics
+      # ── 1. Set repository topics (replaces all existing topics) ───────────────
+      - name: Set repository topics
         if: inputs.dry_run == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
