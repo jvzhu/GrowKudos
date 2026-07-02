@@ -40,11 +40,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Bandit Scan
-        uses: shundor/python-bandit-scan@ab1d87dfccc5a0ffab88be3aaac6ffe35c10d6cd
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          exit_zero: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          python-version: '3.x'
+      - name: Install Bandit
+        run: pip install 'bandit[toml,sarif]'
+      - name: Run Bandit
+        run: bandit -r . -f sarif -o bandit-results.sarif
+        continue-on-error: true
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit
 
   # ── ENABLE: CodeQL (multi-language) ──────────────────────
   codeql:
@@ -140,20 +150,20 @@ jobs:
 # DAST requires a running application. Uncomment and adapt
 # the StackHawk job after setting up your app start command.
 #
-# stackhawk:
-#   name: StackHawk API Scan
-#   runs-on: ubuntu-latest
-#   steps:
-#     - uses: actions/checkout@v4
-#     - name: Start your application
-#       run: |
-#         # Replace with your app startup command
-#         python manage.py runserver &
-#         sleep 5  # Wait for app to start
-#     - name: Run StackHawk
-#       uses: stackhawk/hawkscan-action@v2
-#       with:
-#         apiKey: ${{ secrets.HAWK_API_KEY }}
+  # stackhawk:
+  #   name: StackHawk API Scan
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Start your application
+  #       run: |
+  #         # Replace with your app startup command
+  #         python manage.py runserver &
+  #         sleep 5  # Wait for app to start
+  #     - name: Run StackHawk
+  #       uses: stackhawk/hawkscan-action@v2
+  #       with:
+  #         apiKey: ${{ secrets.HAWK_API_KEY }}
 
 # ═══════════════════════════════════════════════════════════
 # SECTION 4: CODE QUALITY
@@ -172,5 +182,5 @@ jobs:
       - name: Install Pylint
         run: pip install pylint
       - name: Run Pylint
-        run: pylint $(find . -name '*.py' | head -50)
+        run: git ls-files -z '*.py' | xargs -0 --no-run-if-empty pylint
         continue-on-error: true  # Don't fail CI on style issues

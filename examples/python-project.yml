@@ -6,7 +6,6 @@
 #
 # Tools included:
 #   - Bandit: Python-specific security linter (SAST)
-#   - Pysa:   Python taint analysis for injection vulnerabilities (SAST)
 #   - CodeQL: Semantic analysis (SAST)
 #   - OSV Scanner: Dependency vulnerability scanning (SCA)
 #   - Dependency Review: PR dependency gate (SCA)
@@ -58,7 +57,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install Bandit
-        run: pip install bandit[toml]
+        run: pip install 'bandit[toml,sarif]'
 
       - name: Run Bandit
         run: bandit -r . -f sarif -o bandit-results.sarif
@@ -164,6 +163,5 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run Pylint
-        run: |
-          pylint --output-format=parseable **/*.py || true
+        run: git ls-files -z '*.py' | xargs -0 --no-run-if-empty pylint
         continue-on-error: true
